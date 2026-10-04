@@ -1,6 +1,7 @@
 import ParkingLot from '../models/ParkingLot.js';
 import Slot from '../models/Slot.js';
 import { getIo } from '../config/io.js';
+import mongoose from 'mongoose';
 
 // Generate labels A1–A10, B1–B10, … for a given total count
 const generateSlotLabels = (total) => {
@@ -18,28 +19,58 @@ const generateSlotLabels = (total) => {
 export const createLot = async (req, res) => {
   try {
     const { name, address, latitude, longitude, totalSlots, hourlyRate } = req.body;
-    if (!name || !address || latitude == null || longitude == null || !totalSlots || hourlyRate == null)
-      return res.status(400).json({ message: 'All fields are required' });
+    const parseNumber = (value) => {
+      if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+      if (typeof value !== 'string' || value.trim() === '') return null;
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : null;
+    };
 
-    const lot = await ParkingLot.create({
-      name,
-      address,
-      location: {
-        type: 'Point',
-        coordinates: [parseFloat(longitude), parseFloat(latitude)],
-      },
-      totalSlots: parseInt(totalSlots),
-      hourlyRate: parseFloat(hourlyRate),
-      createdBy: req.user._id,
-    });
+    const parsedLatitude = parseNumber(latitude);
+    const parsedLongitude = parseNumber(longitude);
+    const parsedHourlyRate = parseNumber(hourlyRate);
+    const parsedTotalSlots = parseNumber(totalSlots);
 
-    // Auto-generate all slots for this lot
-    const slotDocs = generateSlotLabels(lot.totalSlots).map((label) => ({
-      lot: lot._id,
-      label,
-      status: 'available',
-    }));
-    await Slot.insertMany(slotDocs);
+    if (typeof name !== 'string' || !name.trim())
+      return res.status(400).json({ message: 'name must be a non-empty string' });
+    if (typeof address !== 'string' || !address.trim())
+      return res.status(400).json({ message: 'address must be a non-empty string' });
+    if (parsedLatitude === null || parsedLatitude < -90 || parsedLatitude > 90)
+      return res.status(400).json({ message: 'latitude must be a finite number between -90 and 90' });
+    if (parsedLongitude === null || parsedLongitude < -180 || parsedLongitude > 180)
+      return res.status(400).json({ message: 'longitude must be a finite number between -180 and 180' });
+    if (parsedHourlyRate === null || parsedHourlyRate < 0)
+      return res.status(400).json({ message: 'hourlyRate must be a finite number greater than or equal to 0' });
+    if (!Number.isInteger(parsedTotalSlots) || parsedTotalSlots < 1 || parsedTotalSlots > 260)
+      return res.status(400).json({ message: 'totalSlots must be a positive integer no greater than 260' });
+
+    const session = await mongoose.startSession();
+    let lot;
+    try {
+      await session.withTransaction(async () => {
+        const [createdLot] = await ParkingLot.create([{
+          name: name.trim(),
+          address: address.trim(),
+          location: {
+            type: 'Point',
+            coordinates: [parsedLongitude, parsedLatitude],
+          },
+          totalSlots: parsedTotalSlots,
+          hourlyRate: parsedHourlyRate,
+          createdBy: req.user._id,
+        }], { session });
+        lot = createdLot;
+
+        const slotDocs = generateSlotLabels(parsedTotalSlots).map((label) => ({
+          lot: createdLot._id,
+          label,
+          status: 'available',
+        }));
+        await Slot.insertMany(slotDocs, { session });
+      });
+    } finally {
+      await session.endSession();
+    }
 
     // Notify all connected clients that a new lot exists
     getIo().emit('lot:created', lot);

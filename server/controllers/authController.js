@@ -6,18 +6,15 @@ const signToken = (id) => jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: 
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password } = req.body;
     if (!name || !email || !password)
       return res.status(400).json({ message: 'name, email and password are required' });
 
     if (await User.findOne({ email }))
       return res.status(409).json({ message: 'Email already registered' });
 
-    const allowedRoles = ['driver', 'guard', 'admin'];
-    const userRole = allowedRoles.includes(role) ? role : 'driver';
-
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, passwordHash, role: userRole });
+    const user = await User.create({ name, email, passwordHash, role: 'driver' });
 
     res.status(201).json({ token: signToken(user._id), user });
   } catch (err) {

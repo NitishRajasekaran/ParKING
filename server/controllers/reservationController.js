@@ -4,6 +4,7 @@ import Ticket from '../models/Ticket.js';
 import generateQrToken from '../utils/generateQrToken.js';
 import { createOccupancySnapshot } from '../services/occupancyService.js';
 import { getIo } from '../config/io.js';
+import mongoose from 'mongoose';
 
 export const createReservation = async (req, res) => {
   try {
@@ -14,30 +15,57 @@ export const createReservation = async (req, res) => {
     // ATOMIC double-booking protection:
     // findOneAndUpdate only succeeds when the slot is currently 'available'.
     // If another request reserved it first, this returns null → 409.
-    const slot = await Slot.findOneAndUpdate(
-      { _id: slotId, status: 'available' },
-      { $set: { status: 'reserved' } },
-      { new: true }
-    );
+    const session = await mongoose.startSession();
+    let slot;
+    let reservation;
+    let ticket;
+    let slotExists = false;
 
-    if (!slot) {
-      return res.status(409).json({ message: 'Slot is no longer available — someone just took it' });
+    try {
+      await session.withTransaction(async () => {
+        slot = undefined;
+        reservation = undefined;
+        ticket = undefined;
+        slotExists = false;
+
+        const matchingSlot = await Slot.findOne({ _id: slotId, lot: lotId }).session(session);
+        if (!matchingSlot) return;
+        slotExists = true;
+
+        slot = await Slot.findOneAndUpdate(
+          { _id: slotId, lot: lotId, status: 'available' },
+          { $set: { status: 'reserved' } },
+          { new: true, session }
+        );
+        if (!slot) return;
+
+        [reservation] = await Reservation.create([{
+          user: req.user._id,
+          lot: lotId,
+          slot: slotId,
+          status: 'reserved',
+        }], { session });
+
+        [ticket] = await Ticket.create([{
+          reservation: reservation._id,
+          user: req.user._id,
+          lot: lotId,
+          qrToken: generateQrToken(),
+          status: 'issued',
+        }], { session });
+
+        await createOccupancySnapshot(lotId, session);
+      });
+    } finally {
+      await session.endSession();
     }
 
-    const reservation = await Reservation.create({
-      user: req.user._id,
-      lot: lotId,
-      slot: slotId,
-      status: 'reserved',
-    });
-
-    const ticket = await Ticket.create({
-      reservation: reservation._id,
-      user: req.user._id,
-      lot: lotId,
-      qrToken: generateQrToken(),
-      status: 'issued',
-    });
+    if (!slotExists) {
+      return res.status(404).json({ message: 'Slot not found in the requested parking lot' });
+    }
+    if (!slot) {
+      return res.status(409).json({ message: 'Slot is no longer available or was just reserved' });
+    }
 
     const io = getIo();
     const lotRoom = `lot:${lotId}`;
@@ -48,8 +76,6 @@ export const createReservation = async (req, res) => {
 
     const availableCount = await Slot.countDocuments({ lot: lotId, status: 'available' });
     io.to(lotRoom).emit('lot:availability', { lotId, availableCount });
-
-    await createOccupancySnapshot(lotId);
 
     res.status(201).json({ reservation, ticket });
   } catch (err) {
