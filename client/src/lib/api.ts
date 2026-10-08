@@ -21,10 +21,10 @@ export interface Slot { _id: string; lot: string; label: string; status: SlotSta
 export interface Reservation { _id: string; user?: string; lot: Ref; slot: Ref; status: "reserved" | "checked_in" | "completed"; createdAt: string }
 export type TicketStatus = "issued" | "entered" | "exited";
 export interface Ticket {
-  _id: string; reservation: string; user?: Ref; lot: Ref; slot: Ref; qrToken: string;
+  _id: string; reservation: string | { _id: string; slot: Ref }; user?: Ref; lot: Ref; qrToken: string;
   status: TicketStatus; enteredAt?: string | null; exitedAt?: string | null; amount?: number | null;
 }
-export interface ValidateResponse { valid: boolean; ticket?: { _id: string; user: Ref; lot: Ref; slot: Ref; status: TicketStatus } }
+export interface ValidateResponse { valid: boolean; ticket?: Ticket }
 export interface OccupancyPoint { timestamp: string; occupiedCount: number; totalSlots: number }
 
 export const API_BASE = (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";

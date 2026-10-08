@@ -77,7 +77,7 @@ function GuardScan() {
 function Result({ token, res, onDone, onReset }: { token: string; res: ValidateResponse; onDone: (a: "entry" | "exit") => void; onReset: () => void }) {
   const t = res.ticket!;
   const lotName = refName(t.lot) ?? "—";
-  const slotLabel = refName(t.slot, "label") ?? "—";
+  const slotLabel = refName(typeof t.reservation === "object" ? t.reservation.slot : undefined, "label") ?? "—";
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
   const action: "entry" | "exit" | null = t.status === "issued" ? "entry" : t.status === "entered" ? "exit" : null;

@@ -12,7 +12,7 @@ export const Route = createFileRoute("/driver/tickets/$id")({ component: TicketP
 function TicketPage() {
   const { id } = Route.useParams();
   const q = useQuery({ queryKey: ["ticket", id], queryFn: () => ticketsApi.get(id), refetchInterval: 15000 });
-  const names = useLotSlotNames(q.data?.lot, q.data?.slot);
+  const names = useLotSlotNames(q.data?.lot, typeof q.data?.reservation === "object" ? q.data.reservation.slot : undefined);
   const t = q.data;
 
   return (

@@ -31,7 +31,7 @@ function TicketsPage() {
 }
 
 function Row({ t }: { t: Ticket }) {
-  const { lotName, slotLabel } = useLotSlotNames(t.lot, t.slot);
+  const { lotName, slotLabel } = useLotSlotNames(t.lot, typeof t.reservation === "object" ? t.reservation.slot : undefined);
   return (
     <Link to="/driver/tickets/$id" params={{ id: t._id }} className="press flex items-center gap-4 rounded-2xl border border-border p-4 hover:border-foreground">
       <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary text-lg font-black text-primary-foreground">{slotLabel}</span>
