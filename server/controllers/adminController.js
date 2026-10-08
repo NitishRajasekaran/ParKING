@@ -73,3 +73,38 @@ export const getOccupancy = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+export const getAdminLots = async (req, res) => {
+  try {
+    const lots = await ParkingLot.find().sort({ createdAt: -1 });
+
+    const lotsWithOccupancy = await Promise.all(
+      lots.map(async (lot) => {
+        const [occupiedSlots, reservedSlots, availableSlots] = await Promise.all([
+          Slot.countDocuments({ lot: lot._id, status: 'occupied' }),
+          Slot.countDocuments({ lot: lot._id, status: 'reserved' }),
+          Slot.countDocuments({ lot: lot._id, status: 'available' }),
+        ]);
+
+        return {
+          _id: lot._id,
+          name: lot.name,
+          address: lot.address,
+          totalSlots: lot.totalSlots,
+          hourlyRate: lot.hourlyRate,
+          occupiedSlots,
+          reservedSlots,
+          availableSlots,
+          occupancyPercent:
+            lot.totalSlots > 0
+              ? parseFloat(((occupiedSlots / lot.totalSlots) * 100).toFixed(1))
+              : 0,
+        };
+      })
+    );
+
+    res.json(lotsWithOccupancy);
+} catch (err) {
+  console.error('Occupancy metrics error:', err);
+  res.status(500).json({ message: err.message });
+}
+};

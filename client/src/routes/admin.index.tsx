@@ -19,7 +19,7 @@ function Dashboard() {
   const l = lots.data ?? [];
   const available = l.reduce((s, x) => s + availableOf(x), 0);
   const occupied = l.reduce((s, x) => s + occupiedOf(x), 0);
-  const chart = (occ.data ?? []).map((p) => ({
+  const chart = (occ.data?.snapshots ?? []).map((p) => ({
     t: new Date(p.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     pct: p.totalSlots ? Math.round((p.occupiedCount / p.totalSlots) * 100) : 0,
     n: p.occupiedCount,

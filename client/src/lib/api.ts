@@ -80,9 +80,17 @@ export const ticketsApi = {
 };
 
 export const guardApi = {
-  validate: (qrToken: string) => http.post<ValidateResponse>("/guard/validate", { qrToken }).then((r) => r.data),
-  entry: (qrToken: string) => http.post("/guard/entry", { qrToken }).then((r) => r.data),
-  exit: (qrToken: string) => http.post("/guard/exit", { qrToken }).then((r) => r.data),
+  validate: (qrToken: string) =>
+    http.post<Ticket>("/guard/validate", { qrToken }).then((r) => ({
+      valid: true,
+      ticket: r.data,
+    })),
+
+  entry: (qrToken: string) =>
+    http.post("/guard/entry", { qrToken }).then((r) => r.data),
+
+  exit: (qrToken: string) =>
+    http.post("/guard/exit", { qrToken }).then((r) => r.data),
 };
 
 export const adminApi = {

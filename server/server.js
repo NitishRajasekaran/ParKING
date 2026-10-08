@@ -20,7 +20,10 @@ dotenv.config();
 
 const app = express();
 
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173' }));
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
 
 // Health-check endpoint
@@ -39,10 +42,11 @@ app.use('/api/simulator', simulatorRoutes);
 const httpServer = http.createServer(app);
 
 const io = new Server(httpServer, {
-  cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    methods: ['GET', 'POST'],
-  },
+cors: {
+  origin: true,
+  methods: ['GET', 'POST'],
+  credentials: true,
+},
 });
 
 // Store io in the singleton so controllers can emit events without circular imports
