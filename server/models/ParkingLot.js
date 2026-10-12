@@ -12,6 +12,7 @@ const parkingLotSchema = new mongoose.Schema(
     totalSlots: { type: Number, required: true, min: 1 },
     hourlyRate: { type: Number, required: true, min: 0 },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    owner: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true }
 );

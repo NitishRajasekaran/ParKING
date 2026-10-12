@@ -5,6 +5,8 @@ import { useAuth, homeFor } from "@/lib/auth";
 import type { Role } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
+const roleMatches = (actual: Role, expected: Role) => actual === expected || ((actual === "admin" || actual === "platform_admin") && (expected === "admin" || expected === "platform_admin"));
+
 export interface NavItem { to: string; label: string; icon: ReactNode; exact?: boolean }
 
 export function Logo({ className }: { className?: string }) {
@@ -23,10 +25,10 @@ export function RoleShell({ role, nav, title }: { role: Role; nav: NavItem[]; ti
   useEffect(() => {
     if (!ready) return;
     if (!user) navigate({ to: "/login", replace: true });
-    else if (user.role !== role) navigate({ to: homeFor(user.role), replace: true });
+    else if (!roleMatches(user.role, role)) navigate({ to: homeFor(user.role), replace: true });
   }, [ready, user, role, navigate]);
 
-  if (!ready || !user || user.role !== role) {
+  if (!ready || !user || !roleMatches(user.role, role)) {
     return <div className="grid min-h-screen place-items-center"><Loader2 className="size-8 animate-spin" /></div>;
   }
 

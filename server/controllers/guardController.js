@@ -4,6 +4,15 @@ import Reservation from '../models/Reservation.js';
 import { createOccupancySnapshot } from '../services/occupancyService.js';
 import { getIo } from '../config/io.js';
 
+const guardCanAccessLot = (guard, lotRef) => {
+  const assignedLots = Array.isArray(guard.assignedLots) ? guard.assignedLots : [];
+  // Guards created before owner assignment remain platform-wide for compatibility.
+  if (!guard.ownerId && assignedLots.length === 0) return true;
+  const lotId = String(lotRef?._id ?? lotRef ?? '');
+  return assignedLots.some((assigned) => String(assigned?._id ?? assigned) === lotId);
+};
+
+
 // Validate a QR token — returns ticket details without changing state
 export const validateTicket = async (req, res) => {
   try {
@@ -16,6 +25,7 @@ export const validateTicket = async (req, res) => {
       .populate('user', 'name email');
 
     if (!ticket) return res.status(404).json({ message: 'Invalid QR code — ticket not found' });
+    if (!guardCanAccessLot(req.user, ticket.lot)) return res.status(403).json({ message: 'This ticket is outside your assigned parking lots' });
 
     res.json(ticket);
   } catch (err) {
@@ -31,6 +41,7 @@ export const confirmEntry = async (req, res) => {
 
     const ticket = await Ticket.findOne({ qrToken }).populate('reservation');
     if (!ticket) return res.status(404).json({ message: 'Invalid QR code' });
+    if (!guardCanAccessLot(req.user, ticket.lot)) return res.status(403).json({ message: 'This ticket is outside your assigned parking lots' });
 
     if (ticket.status === 'entered')
       return res.status(409).json({ message: 'Vehicle has already entered' });
@@ -79,6 +90,7 @@ export const confirmExit = async (req, res) => {
       .populate('reservation')
       .populate('lot', 'hourlyRate name');
     if (!ticket) return res.status(404).json({ message: 'Invalid QR code' });
+    if (!guardCanAccessLot(req.user, ticket.lot)) return res.status(403).json({ message: 'This ticket is outside your assigned parking lots' });
 
     if (ticket.status === 'issued')
       return res.status(409).json({ message: 'Vehicle has not entered yet' });

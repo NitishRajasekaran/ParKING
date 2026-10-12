@@ -5,16 +5,36 @@ import { closeSocket } from "./socket";
 interface AuthState {
   user: User | null;
   ready: boolean;
-  login: (email: string, password: string) => Promise<User>;
+  login: (email: string, password: string, portal: LoginPortal) => Promise<User>;
   register: (name: string, email: string, password: string) => Promise<User>;
+  setupAdmin: (name: string, email: string, password: string) => Promise<User>;
+  applyOwner: (name: string, email: string, password: string) => Promise<User>;
   logout: () => void;
 }
 
 const Ctx = createContext<AuthState | null>(null);
 const USER_KEY = "parking_user";
 
+export type LoginPortal = "driver" | "owner" | "staff";
+
+export class RoleMismatchError extends Error {
+  constructor(readonly actualRole: Role) {
+    super("Account role does not match the selected portal");
+    this.name = "RoleMismatchError";
+  }
+}
+
+export function roleAllowedForPortal(role: Role, portal: LoginPortal) {
+  if (portal === "staff") return role === "platform_admin" || role === "admin" || role === "guard";
+  return portal === "owner" ? role === "owner" : role === "driver";
+}
+
+export function loginPortalForRole(role: Role): LoginPortal {
+  return role === "owner" ? "owner" : role === "driver" ? "driver" : "staff";
+}
+
 export function homeFor(role: Role) {
-  return role === "admin" ? "/admin" : role === "guard" ? "/guard" : "/driver";
+  return role === "admin" || role === "platform_admin" ? "/admin" : role === "owner" ? "/owner" : role === "guard" ? "/guard" : "/driver";
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -44,8 +64,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value: AuthState = {
     user, ready,
-    login: async (email, password) => { const r = await authApi.login(email, password); return save(r.token, r.user); },
+    login: async (email, password, portal) => {
+      const r = await authApi.login(email, password);
+      if (!roleAllowedForPortal(r.user.role, portal)) throw new RoleMismatchError(r.user.role);
+      return save(r.token, r.user);
+    },
     register: async (name, email, password) => { const r = await authApi.register(name, email, password); return save(r.token, r.user); },
+    setupAdmin: async (name, email, password) => { const r = await authApi.setupAdmin(name, email, password); return save(r.token, r.user); },
+    applyOwner: async (name, email, password) => { const r = await authApi.applyOwner(name, email, password); return save(r.token, r.user); },
     logout: () => { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); closeSocket(); setUser(null); },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -14,18 +14,23 @@ import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DriverRouteImport } from './routes/driver'
 import { Route as GuardRouteImport } from './routes/guard'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OwnerRouteImport } from './routes/owner'
 import { Route as RegisterRouteImport } from './routes/register'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminOwnersRouteImport } from './routes/admin.owners'
 import { Route as DriverIndexRouteImport } from './routes/driver.index'
 import { Route as DriverProfileRouteImport } from './routes/driver.profile'
 import { Route as DriverSearchRouteImport } from './routes/driver.search'
 import { Route as GuardIndexRouteImport } from './routes/guard.index'
 import { Route as GuardProfileRouteImport } from './routes/guard.profile'
+import { Route as OwnerIndexRouteImport } from './routes/owner.index'
+import { Route as OwnerGuardsRouteImport } from './routes/owner.guards'
 import { Route as AdminLotsIndexRouteImport } from './routes/admin.lots.index'
 import { Route as AdminLotsNewRouteImport } from './routes/admin.lots.new'
 import { Route as DriverLotsIdRouteImport } from './routes/driver.lots.$id'
 import { Route as DriverTicketsIndexRouteImport } from './routes/driver.tickets.index'
 import { Route as DriverTicketsIdRouteImport } from './routes/driver.tickets.$id'
+import { Route as OwnerLotsNewRouteImport } from './routes/owner.lots.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +57,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const OwnerRoute = OwnerRouteImport.update({
+  id: '/owner',
+  path: '/owner',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
   path: '/register',
@@ -60,6 +70,11 @@ const RegisterRoute = RegisterRouteImport.update({
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminOwnersRoute = AdminOwnersRouteImport.update({
+  id: '/owners',
+  path: '/owners',
   getParentRoute: () => AdminRoute,
 } as any)
 const DriverIndexRoute = DriverIndexRouteImport.update({
@@ -87,6 +102,16 @@ const GuardProfileRoute = GuardProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => GuardRoute,
 } as any)
+const OwnerIndexRoute = OwnerIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OwnerRoute,
+} as any)
+const OwnerGuardsRoute = OwnerGuardsRouteImport.update({
+  id: '/guards',
+  path: '/guards',
+  getParentRoute: () => OwnerRoute,
+} as any)
 const AdminLotsIndexRoute = AdminLotsIndexRouteImport.update({
   id: '/lots/',
   path: '/lots/',
@@ -112,6 +137,11 @@ const DriverTicketsIdRoute = DriverTicketsIdRouteImport.update({
   path: '/tickets/$id',
   getParentRoute: () => DriverRoute,
 } as any)
+const OwnerLotsNewRoute = OwnerLotsNewRouteImport.update({
+  id: '/lots/new',
+  path: '/lots/new',
+  getParentRoute: () => OwnerRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -119,16 +149,21 @@ export interface FileRoutesByFullPath {
   '/driver': typeof DriverRouteWithChildren
   '/guard': typeof GuardRouteWithChildren
   '/login': typeof LoginRoute
+  '/owner': typeof OwnerRouteWithChildren
   '/register': typeof RegisterRoute
+  '/admin/owners': typeof AdminOwnersRoute
   '/driver/profile': typeof DriverProfileRoute
   '/driver/search': typeof DriverSearchRoute
   '/guard/profile': typeof GuardProfileRoute
+  '/owner/guards': typeof OwnerGuardsRoute
   '/admin/': typeof AdminIndexRoute
   '/driver/': typeof DriverIndexRoute
   '/guard/': typeof GuardIndexRoute
+  '/owner/': typeof OwnerIndexRoute
   '/admin/lots/new': typeof AdminLotsNewRoute
   '/driver/lots/$id': typeof DriverLotsIdRoute
   '/driver/tickets/$id': typeof DriverTicketsIdRoute
+  '/owner/lots/new': typeof OwnerLotsNewRoute
   '/admin/lots/': typeof AdminLotsIndexRoute
   '/driver/tickets/': typeof DriverTicketsIndexRoute
 }
@@ -136,15 +171,19 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
+  '/admin/owners': typeof AdminOwnersRoute
   '/driver/profile': typeof DriverProfileRoute
   '/driver/search': typeof DriverSearchRoute
   '/guard/profile': typeof GuardProfileRoute
+  '/owner/guards': typeof OwnerGuardsRoute
   '/admin': typeof AdminIndexRoute
   '/driver': typeof DriverIndexRoute
   '/guard': typeof GuardIndexRoute
+  '/owner': typeof OwnerIndexRoute
   '/admin/lots/new': typeof AdminLotsNewRoute
   '/driver/lots/$id': typeof DriverLotsIdRoute
   '/driver/tickets/$id': typeof DriverTicketsIdRoute
+  '/owner/lots/new': typeof OwnerLotsNewRoute
   '/admin/lots': typeof AdminLotsIndexRoute
   '/driver/tickets': typeof DriverTicketsIndexRoute
 }
@@ -155,16 +194,21 @@ export interface FileRoutesById {
   '/driver': typeof DriverRouteWithChildren
   '/guard': typeof GuardRouteWithChildren
   '/login': typeof LoginRoute
+  '/owner': typeof OwnerRouteWithChildren
   '/register': typeof RegisterRoute
+  '/admin/owners': typeof AdminOwnersRoute
   '/driver/profile': typeof DriverProfileRoute
   '/driver/search': typeof DriverSearchRoute
   '/guard/profile': typeof GuardProfileRoute
+  '/owner/guards': typeof OwnerGuardsRoute
   '/admin/': typeof AdminIndexRoute
   '/driver/': typeof DriverIndexRoute
   '/guard/': typeof GuardIndexRoute
+  '/owner/': typeof OwnerIndexRoute
   '/admin/lots/new': typeof AdminLotsNewRoute
   '/driver/lots/$id': typeof DriverLotsIdRoute
   '/driver/tickets/$id': typeof DriverTicketsIdRoute
+  '/owner/lots/new': typeof OwnerLotsNewRoute
   '/admin/lots/': typeof AdminLotsIndexRoute
   '/driver/tickets/': typeof DriverTicketsIndexRoute
 }
@@ -176,16 +220,21 @@ export interface FileRouteTypes {
     | '/driver'
     | '/guard'
     | '/login'
+    | '/owner'
     | '/register'
+    | '/admin/owners'
     | '/driver/profile'
     | '/driver/search'
     | '/guard/profile'
+    | '/owner/guards'
     | '/admin/'
     | '/driver/'
     | '/guard/'
+    | '/owner/'
     | '/admin/lots/new'
     | '/driver/lots/$id'
     | '/driver/tickets/$id'
+    | '/owner/lots/new'
     | '/admin/lots/'
     | '/driver/tickets/'
   fileRoutesByTo: FileRoutesByTo
@@ -193,15 +242,19 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/register'
+    | '/admin/owners'
     | '/driver/profile'
     | '/driver/search'
     | '/guard/profile'
+    | '/owner/guards'
     | '/admin'
     | '/driver'
     | '/guard'
+    | '/owner'
     | '/admin/lots/new'
     | '/driver/lots/$id'
     | '/driver/tickets/$id'
+    | '/owner/lots/new'
     | '/admin/lots'
     | '/driver/tickets'
   id:
@@ -211,16 +264,21 @@ export interface FileRouteTypes {
     | '/driver'
     | '/guard'
     | '/login'
+    | '/owner'
     | '/register'
+    | '/admin/owners'
     | '/driver/profile'
     | '/driver/search'
     | '/guard/profile'
+    | '/owner/guards'
     | '/admin/'
     | '/driver/'
     | '/guard/'
+    | '/owner/'
     | '/admin/lots/new'
     | '/driver/lots/$id'
     | '/driver/tickets/$id'
+    | '/owner/lots/new'
     | '/admin/lots/'
     | '/driver/tickets/'
   fileRoutesById: FileRoutesById
@@ -231,6 +289,7 @@ export interface RootRouteChildren {
   DriverRoute: typeof DriverRouteWithChildren
   GuardRoute: typeof GuardRouteWithChildren
   LoginRoute: typeof LoginRoute
+  OwnerRoute: typeof OwnerRouteWithChildren
   RegisterRoute: typeof RegisterRoute
 }
 
@@ -271,6 +330,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/owner': {
+      id: '/owner'
+      path: '/owner'
+      fullPath: '/owner'
+      preLoaderRoute: typeof OwnerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/register': {
       id: '/register'
       path: '/register'
@@ -283,6 +349,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/owners': {
+      id: '/admin/owners'
+      path: '/owners'
+      fullPath: '/admin/owners'
+      preLoaderRoute: typeof AdminOwnersRouteImport
       parentRoute: typeof AdminRoute
     }
     '/driver/': {
@@ -320,6 +393,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuardProfileRouteImport
       parentRoute: typeof GuardRoute
     }
+    '/owner/': {
+      id: '/owner/'
+      path: '/'
+      fullPath: '/owner/'
+      preLoaderRoute: typeof OwnerIndexRouteImport
+      parentRoute: typeof OwnerRoute
+    }
+    '/owner/guards': {
+      id: '/owner/guards'
+      path: '/guards'
+      fullPath: '/owner/guards'
+      preLoaderRoute: typeof OwnerGuardsRouteImport
+      parentRoute: typeof OwnerRoute
+    }
     '/admin/lots/': {
       id: '/admin/lots/'
       path: '/lots'
@@ -355,16 +442,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DriverTicketsIdRouteImport
       parentRoute: typeof DriverRoute
     }
+    '/owner/lots/new': {
+      id: '/owner/lots/new'
+      path: '/lots/new'
+      fullPath: '/owner/lots/new'
+      preLoaderRoute: typeof OwnerLotsNewRouteImport
+      parentRoute: typeof OwnerRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
+  AdminOwnersRoute: typeof AdminOwnersRoute
   AdminIndexRoute: typeof AdminIndexRoute
   AdminLotsNewRoute: typeof AdminLotsNewRoute
   AdminLotsIndexRoute: typeof AdminLotsIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminOwnersRoute: AdminOwnersRoute,
   AdminIndexRoute: AdminIndexRoute,
   AdminLotsNewRoute: AdminLotsNewRoute,
   AdminLotsIndexRoute: AdminLotsIndexRoute,
@@ -405,12 +501,27 @@ const GuardRouteChildren: GuardRouteChildren = {
 
 const GuardRouteWithChildren = GuardRoute._addFileChildren(GuardRouteChildren)
 
+interface OwnerRouteChildren {
+  OwnerGuardsRoute: typeof OwnerGuardsRoute
+  OwnerIndexRoute: typeof OwnerIndexRoute
+  OwnerLotsNewRoute: typeof OwnerLotsNewRoute
+}
+
+const OwnerRouteChildren: OwnerRouteChildren = {
+  OwnerGuardsRoute: OwnerGuardsRoute,
+  OwnerIndexRoute: OwnerIndexRoute,
+  OwnerLotsNewRoute: OwnerLotsNewRoute,
+}
+
+const OwnerRouteWithChildren = OwnerRoute._addFileChildren(OwnerRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   DriverRoute: DriverRouteWithChildren,
   GuardRoute: GuardRouteWithChildren,
   LoginRoute: LoginRoute,
+  OwnerRoute: OwnerRouteWithChildren,
   RegisterRoute: RegisterRoute,
 }
 export const routeTree = rootRouteImport

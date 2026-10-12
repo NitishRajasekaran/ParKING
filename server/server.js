@@ -14,6 +14,7 @@ import reservationRoutes from './routes/reservationRoutes.js';
 import ticketRoutes from './routes/ticketRoutes.js';
 import guardRoutes from './routes/guardRoutes.js';
 import adminRoutes from './routes/adminRoutes.js';
+import ownerRoutes from './routes/ownerRoutes.js';
 import simulatorRoutes from './routes/simulatorRoutes.js';
 
 dotenv.config();
@@ -36,6 +37,7 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/guard', guardRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/owner', ownerRoutes);
 app.use('/api/simulator', simulatorRoutes);
 
 // Wrap Express in an HTTP server so Socket.io can share the same port

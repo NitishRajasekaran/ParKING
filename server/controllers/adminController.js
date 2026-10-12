@@ -1,8 +1,45 @@
 import Ticket from '../models/Ticket.js';
+import bcrypt from 'bcryptjs';
+import User from '../models/User.js';
 import ParkingLot from '../models/ParkingLot.js';
 import Slot from '../models/Slot.js';
 import OccupancySnapshot from '../models/OccupancySnapshot.js';
 
+const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+export const getStaffUsers = async (_req, res) => {
+  try {
+    const users = await User.find({ role: { $in: ['platform_admin', 'admin', 'guard'] } })
+      .select('_id name email role createdAt')
+      .sort({ createdAt: 1 });
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const createStaffUser = async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const { password, role } = body;
+    if (!name || !email || typeof password !== 'string' || !role)
+      return res.status(400).json({ message: 'name, email, password and role are required' });
+    if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address' });
+    if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+    if (role !== 'platform_admin' && role !== 'guard')
+      return res.status(400).json({ message: 'role must be platform_admin or guard' });
+    if (await User.exists({ email })) return res.status(409).json({ message: 'Email already registered' });
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, passwordHash, role });
+    res.status(201).json(user);
+  } catch (err) {
+    if (err.code === 11000) return res.status(409).json({ message: 'Email already registered' });
+    res.status(500).json({ message: err.message });
+  }
+};
 export const getRevenue = async (req, res) => {
   try {
     const tickets = await Ticket.find({ status: 'exited' })
@@ -75,7 +112,7 @@ export const getOccupancy = async (req, res) => {
 };
 export const getAdminLots = async (req, res) => {
   try {
-    const lots = await ParkingLot.find().sort({ createdAt: -1 });
+    const lots = await ParkingLot.find().populate('owner', 'name email').sort({ createdAt: -1 });
 
     const lotsWithOccupancy = await Promise.all(
       lots.map(async (lot) => {
@@ -91,6 +128,7 @@ export const getAdminLots = async (req, res) => {
           address: lot.address,
           totalSlots: lot.totalSlots,
           hourlyRate: lot.hourlyRate,
+          owner: lot.owner,
           occupiedSlots,
           reservedSlots,
           availableSlots,
@@ -103,8 +141,93 @@ export const getAdminLots = async (req, res) => {
     );
 
     res.json(lotsWithOccupancy);
-} catch (err) {
-  console.error('Occupancy metrics error:', err);
-  res.status(500).json({ message: err.message });
-}
+  } catch (err) {
+    console.error('Occupancy metrics error:', err);
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const getPendingOwnerApplications = async (_req, res) => {
+  try {
+    const owners = await User.find({ role: 'owner', ownerStatus: 'pending' })
+      .select('_id name email role ownerStatus createdAt updatedAt')
+      .sort({ createdAt: -1 });
+    res.json(owners);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const getOwnerApplications = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const filter = { role: 'owner' };
+    if (status && ['none', 'pending', 'approved', 'rejected'].includes(status)) {
+      filter.ownerStatus = status;
+    }
+    const owners = await User.find(filter)
+      .select('_id name email role ownerStatus createdAt updatedAt')
+      .sort({ createdAt: -1 });
+    res.json(owners);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const approveOwnerApplication = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'Owner account not found' });
+    if (user.role !== 'owner') {
+      return res.status(400).json({ message: 'Target account is not an owner' });
+    }
+    user.ownerStatus = 'approved';
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const rejectOwnerApplication = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+    if (!user) return res.status(404).json({ message: 'Owner account not found' });
+    if (user.role !== 'owner') {
+      return res.status(400).json({ message: 'Target account is not an owner' });
+    }
+    user.ownerStatus = 'rejected';
+    await user.save();
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const assignLotOwner = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { ownerId } = req.body;
+
+    const lot = await ParkingLot.findById(id);
+    if (!lot) return res.status(404).json({ message: 'Parking lot not found' });
+
+    if (ownerId) {
+      const owner = await User.findById(ownerId);
+      if (!owner || owner.role !== 'owner' || owner.ownerStatus !== 'approved') {
+        return res.status(400).json({ message: 'Assigned owner must be an approved owner account' });
+      }
+      lot.owner = owner._id;
+    } else {
+      lot.owner = null;
+    }
+
+    await lot.save();
+    const updatedLot = await ParkingLot.findById(lot._id).populate('owner', 'name email');
+    res.json(updatedLot);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 };

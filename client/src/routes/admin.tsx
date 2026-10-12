@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { LayoutGrid, Plus, SquareParking } from "lucide-react";
+import { LayoutGrid, Plus, ShieldCheck, SquareParking } from "lucide-react";
 import { RoleShell } from "@/components/AppShell";
 
 export const Route = createFileRoute("/admin")({
@@ -17,6 +17,7 @@ export const Route = createFileRoute("/admin")({
       { to: "/admin", label: "Dashboard", icon: <LayoutGrid className="size-6" />, exact: true },
       { to: "/admin/lots", label: "Lots", icon: <SquareParking className="size-6" />, exact: true },
       { to: "/admin/lots/new", label: "Add", icon: <Plus className="size-6" /> },
+      { to: "/admin/owners", label: "Owners", icon: <ShieldCheck className="size-6" /> },
     ]} />
   ),
 });

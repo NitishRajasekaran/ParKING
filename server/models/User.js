@@ -5,7 +5,25 @@ const userSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true },
-    role: { type: String, enum: ['driver', 'guard', 'admin'], default: 'driver' },
+    role: {
+      type: String,
+      enum: ['driver', 'guard', 'owner', 'platform_admin', 'admin'],
+      default: 'driver',
+    },
+    ownerStatus: {
+      type: String,
+      enum: ['none', 'pending', 'approved', 'rejected'],
+      default: 'none',
+    },
+    assignedLots: {
+      type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'ParkingLot' }],
+      default: [],
+    },
+    ownerId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
   },
   { timestamps: true }
 );
