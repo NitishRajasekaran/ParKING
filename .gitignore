@@ -33,5 +33,5 @@ Thumbs.db
 __pycache__/
 *.zip
 ParKING_Project/
-
-
+.vercel/
+.output/

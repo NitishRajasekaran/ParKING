@@ -176,7 +176,9 @@ export function clearStoredSession(): void {
   }
 }
 
-export const http = axios.create({ baseURL: API_BASE || "/api" });
+export const http = axios.create({
+  baseURL: API_BASE ? (API_BASE.endsWith("/api") ? API_BASE : `${API_BASE}/api`) : "/api",
+});
 
 http.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
