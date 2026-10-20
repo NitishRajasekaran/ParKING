@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mock } from 'node:test';
 import Ticket from '../models/Ticket.js';
+import Reservation from '../models/Reservation.js';
 import { calculateParkingFee, guardCanAccessLot, ticketLookupFilter, validateTicket } from '../controllers/guardController.js';
+import { getMyTickets } from '../controllers/ticketController.js';
+import { authorize } from '../middleware/auth.js';
 import { canJoinLotRoom } from '../sockets/index.js';
 
 const queryReturning = (value) => ({
@@ -90,4 +93,47 @@ test('rent is non-fractioned with a minimum of 1 full hour even for short durati
   const after135Minutes = new Date('2026-10-20T12:15:00.000Z');
   assert.equal(calculateParkingFee(now, after135Minutes, hourlyRate), 150);
 });
+
+test('authorize middleware rejects driver role for guard routes with 403 Forbidden', () => {
+  const guardAuth = authorize('guard', 'platform_admin', 'admin', 'owner');
+  const req = { user: { _id: 'driver-1', role: 'driver' } };
+  const res = responseRecorder();
+  let calledNext = false;
+  guardAuth(req, res, () => { calledNext = true; });
+
+  assert.equal(calledNext, false);
+  assert.equal(res.code, 403);
+  assert.match(res.body.message, /forbidden: insufficient permissions/i);
+});
+
+test('authorize middleware allows guard role for guard routes', () => {
+  const guardAuth = authorize('guard', 'platform_admin', 'admin', 'owner');
+  const req = { user: { _id: 'guard-1', role: 'guard' } };
+  const res = responseRecorder();
+  let calledNext = false;
+  guardAuth(req, res, () => { calledNext = true; });
+
+  assert.equal(calledNext, true);
+  assert.equal(res.code, 200);
+});
+
+test('getMyTickets isolates tickets by authenticated user ID', async (t) => {
+  const driverTickets = [{ _id: 'ticket-1', user: 'driver-1' }];
+  t.mock.method(Reservation, 'find', () => ({
+    select: () => Promise.resolve([]),
+  }));
+  t.mock.method(Ticket, 'find', (filter) => {
+    assert.equal(String(filter.$or[0].user), 'driver-1');
+    return {
+      populate() { return this; },
+      sort() { return Promise.resolve(driverTickets); },
+    };
+  });
+
+  const res = responseRecorder();
+  await getMyTickets({ user: { _id: 'driver-1', email: 'driver@test.com' } }, res);
+  assert.equal(res.code, 200);
+  assert.deepEqual(res.body, driverTickets);
+});
+
 

@@ -42,13 +42,125 @@ export const API_BASE = import.meta.env.DEV || !configuredApiUrl || configuredAp
   ? ""
   : configuredApiUrl.replace(/\/$/, "");
 export const TOKEN_KEY = "parking_token";
+export const USER_KEY = "parking_user";
+
+let memoryToken: string | null = null;
+let memoryUser: string | null = null;
+
+function getSessionStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
+export function getStoredToken(): string | null {
+  const storage = getSessionStorage();
+  if (storage) {
+    try {
+      const val = storage.getItem(TOKEN_KEY);
+      if (val) return val;
+    } catch {
+      // ignore
+    }
+  }
+  return memoryToken;
+}
+
+export function setStoredToken(token: string | null): void {
+  memoryToken = token;
+  const storage = getSessionStorage();
+  if (storage) {
+    try {
+      if (token) storage.setItem(TOKEN_KEY, token);
+      else storage.removeItem(TOKEN_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  // Remove any legacy localStorage token to prevent cross-tab session leakage
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function getStoredUser(): User | null {
+  const storage = getSessionStorage();
+  let raw: string | null = null;
+  if (storage) {
+    try {
+      raw = storage.getItem(USER_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  if (!raw) raw = memoryUser;
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as User;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredUser(user: User | null): void {
+  const raw = user ? JSON.stringify(user) : null;
+  memoryUser = raw;
+  const storage = getSessionStorage();
+  if (storage) {
+    try {
+      if (raw) storage.setItem(USER_KEY, raw);
+      else storage.removeItem(USER_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  // Remove any legacy localStorage user to prevent cross-tab session leakage
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.removeItem(USER_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function clearStoredSession(): void {
+  memoryToken = null;
+  memoryUser = null;
+  const storage = getSessionStorage();
+  if (storage) {
+    try {
+      storage.removeItem(TOKEN_KEY);
+      storage.removeItem(USER_KEY);
+    } catch {
+      // ignore
+    }
+  }
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      window.localStorage.removeItem(TOKEN_KEY);
+      window.localStorage.removeItem(USER_KEY);
+    }
+  } catch {
+    // ignore
+  }
+}
 
 export const http = axios.create({ baseURL: API_BASE || "/api" });
 
 http.interceptors.request.use((config) => {
   if (typeof window !== "undefined") {
-    const t = window.localStorage.getItem(TOKEN_KEY);
-    if (t) config.headers.Authorization = `Bearer ${t}`;
+    const t = getStoredToken();
+    if (t && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${t}`;
+    }
   }
   return config;
 });

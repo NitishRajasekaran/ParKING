@@ -1,5 +1,16 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { authApi, TOKEN_KEY, type Role, type User } from "./api";
+import {
+  authApi,
+  clearStoredSession,
+  getStoredToken,
+  getStoredUser,
+  setStoredToken,
+  setStoredUser,
+  TOKEN_KEY,
+  USER_KEY,
+  type Role,
+  type User,
+} from "./api";
 import { closeSocket } from "./socket";
 
 interface AuthState {
@@ -13,7 +24,6 @@ interface AuthState {
 }
 
 const Ctx = createContext<AuthState | null>(null);
-const USER_KEY = "parking_user";
 
 export type LoginPortal = "driver" | "owner" | "staff";
 
@@ -42,21 +52,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const token = localStorage.getItem(TOKEN_KEY);
-    const cached = localStorage.getItem(USER_KEY);
+    const token = getStoredToken();
+    const cached = getStoredUser();
     if (!token) { setReady(true); return; }
-    if (cached) { try { setUser(JSON.parse(cached)); } catch { /* ignore */ } }
+    if (cached) { setUser(cached); }
     authApi.me()
-      .then((u) => { setUser(u); localStorage.setItem(USER_KEY, JSON.stringify(u)); })
+      .then((u) => { setUser(u); setStoredUser(u); })
       .catch((e) => {
-        if (e?.response?.status === 401) { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); setUser(null); }
+        if (e?.response?.status === 401) { clearStoredSession(); setUser(null); }
       })
       .finally(() => setReady(true));
   }, []);
 
   const save = (token: string, u: User) => {
-    localStorage.setItem(TOKEN_KEY, token);
-    localStorage.setItem(USER_KEY, JSON.stringify(u));
+    setStoredToken(token);
+    setStoredUser(u);
     closeSocket();
     setUser(u);
     return u;
@@ -72,7 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     register: async (name, email, password) => { const r = await authApi.register(name, email, password); return save(r.token, r.user); },
     setupAdmin: async (name, email, password) => { const r = await authApi.setupAdmin(name, email, password); return save(r.token, r.user); },
     applyOwner: async (name, email, password) => { const r = await authApi.applyOwner(name, email, password); return save(r.token, r.user); },
-    logout: () => { localStorage.removeItem(TOKEN_KEY); localStorage.removeItem(USER_KEY); closeSocket(); setUser(null); },
+    logout: () => { clearStoredSession(); closeSocket(); setUser(null); },
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

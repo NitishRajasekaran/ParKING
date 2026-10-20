@@ -11,7 +11,7 @@
 
 ## Architecture
 - Frontend only; the existing Express/MongoDB/Socket.io backend at `VITE_API_URL` owns all data — never add a backend, Supabase, or mock APIs.
-- All REST calls live in `src/lib/api.ts` (Axios, Bearer JWT from localStorage) and must match the user's backend contract exactly — no invented endpoints.
+- All REST calls live in `src/lib/api.ts` (Axios, Bearer JWT from tab-scoped sessionStorage) and must match the user's backend contract exactly — no invented endpoints.
 - Socket.io (`src/lib/socket.ts`) is receive-only for live updates; REST performs every change.
-- Role sections `/driver`, `/guard`, `/admin` are `ssr: false` layouts gated client-side by `RoleShell`, because the JWT lives in localStorage.
+- Role sections `/driver`, `/guard`, `/admin` are `ssr: false` layouts gated client-side by `RoleShell`, because the JWT lives in tab-scoped sessionStorage.
 - Leaflet and html5-qrcode are imported only in browser-only modules (lazy/dynamic) to keep SSR safe.
