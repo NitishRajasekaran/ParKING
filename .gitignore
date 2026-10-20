@@ -5,6 +5,14 @@ node_modules/
 # Environment secrets — never commit these
 .env
 *.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+certs/
 
 # Vite production build output
 dist/
@@ -21,3 +29,6 @@ npm-debug.log*
 # OS junk
 .DS_Store
 Thumbs.db
+~$*
+__pycache__/
+

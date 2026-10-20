@@ -125,6 +125,17 @@ export const getOwnerApplicationStatus = async (req, res) => {
   try {
     const user = await User.findById(req.user._id).select('_id name email role ownerStatus createdAt updatedAt');
     if (!user) return res.status(404).json({ message: 'User not found' });
+    if (user.role === 'platform_admin' || user.role === 'admin') {
+      return res.json({
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        ownerStatus: 'approved',
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      });
+    }
     if (user.role !== 'owner') {
       return res.status(403).json({ message: 'Only owner accounts have an application status' });
     }

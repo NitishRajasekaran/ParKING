@@ -5,6 +5,7 @@ import {
   getAdminLots,
   getStaffUsers,
   createStaffUser,
+  assignGuardLots,
   getPendingOwnerApplications,
   getOwnerApplications,
   approveOwnerApplication,
@@ -20,6 +21,7 @@ router.get('/metrics/occupancy', protect, authorize('admin'), getOccupancy);
 router.get('/lots', protect, authorize('admin'), getAdminLots);
 router.get('/users', protect, authorize('platform_admin'), getStaffUsers);
 router.post('/users', protect, authorize('platform_admin'), createStaffUser);
+router.patch('/users/:id/assign-lots', protect, authorize('platform_admin'), assignGuardLots);
 
 // Owner Application Management (Platform Admin)
 router.get('/owners/pending', protect, authorize('platform_admin'), getPendingOwnerApplications);

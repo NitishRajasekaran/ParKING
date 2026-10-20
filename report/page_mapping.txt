@@ -1,0 +1,180 @@
+﻿5	ABSTRACT
+7	TABLE OF CONTENTS
+7	Abstract
+7	List of Figures
+7	List of Tables
+7	List of Abbreviations
+7	Chapter 1 – Introduction
+7	5.1  Project Overview
+7	5.2  Problem Statement
+7	5.3  Objectives of the Project
+7	5.4  Scope of the Project
+7	Chapter 2 – Existing System and Proposed System
+7	6.1  Existing Parking Management Systems
+7	6.2  Limitations of the Existing System
+7	6.3  Proposed ParKING Solution
+7	6.4  Advantages of the Proposed System
+7	Chapter 3 – System Analysis and Design
+7	7.1  Requirements Analysis (Functional & Non-Functional)
+7	7.2  System Architecture & Modular Layers
+7	7.3  Module Descriptions & Permission Matrix
+7	7.4  UML Diagrams and Data Flow Diagrams
+7	7.5  Algorithms and Flowchart Models
+7	Chapter 4 – Implementation
+7	8.1  Full-Stack Architectural Implementation Details
+7	8.2  Module Implementation & Key Algorithms
+7	8.3  Tools, Technologies, and Execution Commands
+7	Chapter 5 – Results and Testing
+7	9.1  Application Screenshots and Visual Evidence
+7	9.2  Testing and Quality Assurance Validation
+7	9.3  Results and In-Depth Discussion
+7	9.4  Documented Limitations and Unverified Behavior
+7	Chapter 6 – Conclusion and Future Enhancement
+7	10.1 Conclusion
+7	10.2 Key Achievements and Learnings
+7	10.3 Future Enhancements Roadmap
+8	References / Bibliography
+8	Appendices (Source Code & Safe Configurations)
+9	LIST OF FIGURES
+9	Figure No.
+9	Figure 3.1
+9	Figure 3.2
+9	Figure 3.3
+9	Figure 3.4
+9	Figure 3.5
+9	Figure 3.6
+9	Figure 3.7
+9	Figure 3.8
+9	Figure 3.9
+9	Figure 3.10
+9	Figure 3.11
+9	Figure 3.12
+9	Figure 3.13
+9	Figure 5.1
+9	Figure 5.2
+9	Figure 5.3
+9	Figure 5.4
+9	Figure 5.5
+9	Figure 5.6
+9	Figure 5.7
+9	Figure 5.8
+9	Figure 5.9
+9	Figure 5.10
+9	Figure 5.11
+10	LIST OF TABLES
+10	Table No.
+10	Table 1.1
+10	Table 1.2
+10	Table 2.1
+10	Table 3.1
+10	Table 3.2
+10	Table 3.3
+10	Table 3.4
+10	Table 3.5
+10	Table 3.6
+10	Table 3.7
+10	Table 3.8
+10	Table 3.9
+10	Table 3.10
+10	Table 3.11
+10	Table 3.12
+10	Table 3.13
+10	Table 3.14
+10	Table 4.1
+10	Table 4.2
+10	Table 4.3
+10	Table 4.4
+10	Table 5.1
+10	Table 5.2
+10	Table 5.3
+10	Table 5.4
+10	Table 6.1
+11	LIST OF ABBREVIATIONS
+12	CHAPTER 1INTRODUCTION
+12	1.1 Project Overview
+12	Table 1.1 ParKING Project Overview and System Characteristics
+13	1.2 Problem Statement
+14	1.3 Objectives of the Project
+14	Table 1.2 Project Objectives and Source-Code Implementation Mapping
+14	1.4 Scope of the Project
+16	CHAPTER 2EXISTING SYSTEM AND PROPOSED SYSTEM
+16	2.1 Existing Parking Management Systems
+16	2.2 Limitations of the Existing System
+17	2.3 Proposed ParKING Solution
+18	2.4 Advantages of the Proposed System
+18	Table 2.1 Comparison of Existing Parking Process vs. ParKING Solution
+19	CHAPTER 3SYSTEM ANALYSIS AND DESIGN
+19	3.1 Requirements Analysis
+19	Table 3.1 Functional Requirements Specification (FR-01 to FR-16)
+19	Table 3.2 Non-Functional Requirements Specification
+20	Table 3.3 Software Requirements Specification
+20	Table 3.4 Minimum Hardware Requirements
+21	3.2 System Architecture
+21	Figure 3.1: ParKING System Architecture Diagram
+21	Table 3.5 System Architecture Layers and Responsibilities
+22	3.3 Module Descriptions and System Governance
+22	Table 3.6 Module Descriptions and Functional Responsibilities
+22	Table 3.7 User Roles and Permission Access Matrix
+23	Table 3.8 Frontend Application Routes and Corresponding Components
+24	Table 3.9 Backend REST API Endpoint Catalogue
+25	Table 3.10 MongoDB Collections, Schema Fields, and Indexing Strategies
+26	Table 3.11 Parking Slot Status Definitions and State Transitions
+27	Table 3.12 Reservation and Ticket State Machine Lifecycles
+27	Table 3.13 Socket.IO Event Specifications, Room Scoping, and Payloads
+27	Table 3.14 Hardware Simulator Endpoints and Telemetry Payloads
+28	3.4 UML Diagrams and Data Flow Modeling
+28	Figure 3.2: ParKING Comprehensive Use Case Diagram
+28	Figure 3.3: ParKING Context Diagram (Level 0 DFD)
+29	Figure 3.4: ParKING Level 1 Data Flow Diagram (DFD)
+29	Figure 3.5: Entity-Relationship & MongoDB Schema Diagram
+29	Figure 3.6: ParKING Component Diagram
+30	Figure 3.7: Sequence Diagram — User Authentication & Role Dispatch
+30	Figure 3.8: Sequence Diagram — Parking Lot Creation & Slot Auto-generation
+30	Figure 3.9: Sequence Diagram — Slot Reservation & Concurrency Conflict Protection
+31	Figure 3.10: Sequence Diagram — Guard Ticket Validation & Vehicle Entry/Exit
+31	3.5 Algorithms and Flowchart Models
+32	Figure 3.11: Flowchart of End-to-End Smart Parking Workflow
+33	Figure 3.12: Flowchart of Geospatial Nearby Parking Search ($near 2dsphere)
+33	Figure 3.13: Flowchart of Real-Time Occupancy & Simulator Integration
+34	CHAPTER 4IMPLEMENTATION
+34	4.1 Full-Stack Architectural Implementation Details
+34	Table 4.1 Reusable Frontend Interface Components and UI Kit
+35	Table 4.2 Codebase Size and File Distribution Metrics
+35	4.2 Key Module Implementation & Code Boxes
+40	4.3 Tools, Technologies, and Execution Commands
+40	Table 4.3 Third-Party Libraries, Frameworks, and Runtime Dependencies
+41	Table 4.4 Development and Execution Commands
+42	CHAPTER 5RESULTS AND TESTING
+42	5.1 Application Screenshots and Visual Evidence
+42	Figure 5.1: ParKING Landing Page with Responsive Find-Reserve-Park Hero
+42	Figure 5.2: Authentication Portal (Driver and Staff Tabs)
+43	Figure 5.3: Driver Account Registration Interface
+43	Figure 5.4: Driver Nearby Parking Discovery Interface with Map & Filter Controls
+43	Figure 5.5: Parking Lot Details Screen with Real-Time Interactive Slot Grid
+44	Figure 5.6: Driver Ticket Portfolio & Historical Parking Sessions
+44	Figure 5.7: Active Digital QR Ticket Screen with Opaque Token and Manual Fallback
+44	Figure 5.8: Security Guard Ticket Validation & Mobile Camera Scanning Interface
+45	Figure 5.9: Platform Administrator Analytics Dashboard (Revenue & Occupancy Metrics)
+45	Figure 5.10: Admin Parking Lot Inventory & Slot Provisioning Dashboard
+45	Figure 5.11: Parking Lot Owner Multi-Facility Operational Portal
+45	5.2 Testing and Quality Assurance Validation
+46	Table 5.1 Backend Automated Test Cases and Execution Results (12 Tests)
+46	Table 5.2 Frontend Automated Test Cases and Execution Results (18 Tests)
+47	Table 5.3 Summary of Automated Test Results by Module
+47	100.0%
+47	100.0%
+48	100.0%
+48	100.0%
+48	100.0%
+48	100.0%
+48	100.0%
+48	5.3 Results and In-Depth Discussion
+48	5.4 Documented Limitations and Unverified Technical Behavior
+48	Table 5.4 Documented Limitations and Unverified Technical Behavior
+50	CHAPTER 6CONCLUSION AND FUTURE ENHANCEMENT
+50	6.1 Conclusion
+50	6.2 Key Achievements and Academic Learnings
+50	6.3 Future Enhancements Roadmap
+51	Table 6.1 Phased Future Enhancement Roadmap
+52	REFERENCES / BIBLIOGRAPHY
+53	APPENDICES(Source Code & Configuration Listings)

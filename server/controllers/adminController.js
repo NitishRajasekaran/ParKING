@@ -4,13 +4,15 @@ import User from '../models/User.js';
 import ParkingLot from '../models/ParkingLot.js';
 import Slot from '../models/Slot.js';
 import OccupancySnapshot from '../models/OccupancySnapshot.js';
+import mongoose from 'mongoose';
 
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 export const getStaffUsers = async (_req, res) => {
   try {
     const users = await User.find({ role: { $in: ['platform_admin', 'admin', 'guard'] } })
-      .select('_id name email role createdAt')
+      .select('_id name email role assignedLots createdAt')
+      .populate('assignedLots', 'name address')
       .sort({ createdAt: 1 });
     res.json(users);
   } catch (err) {
@@ -24,19 +26,55 @@ export const createStaffUser = async (req, res) => {
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
     const { password, role } = body;
+    const assignedLots = body.assignedLots ?? [];
     if (!name || !email || typeof password !== 'string' || !role)
       return res.status(400).json({ message: 'name, email, password and role are required' });
     if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address' });
     if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
     if (role !== 'platform_admin' && role !== 'guard')
       return res.status(400).json({ message: 'role must be platform_admin or guard' });
+    if (role === 'guard') {
+      if (!Array.isArray(assignedLots) || assignedLots.length === 0)
+        return res.status(400).json({ message: 'Assign at least one parking lot to a guard' });
+      if (assignedLots.some((id) => !mongoose.isValidObjectId(id)))
+        return res.status(400).json({ message: 'One or more assigned parking lots are invalid' });
+      const uniqueIds = [...new Set(assignedLots.map(String))];
+      const lots = await ParkingLot.find({ _id: { $in: uniqueIds } }).select('_id');
+      if (lots.length !== uniqueIds.length)
+        return res.status(400).json({ message: 'One or more assigned parking lots were not found' });
+      body.assignedLots = lots.map((lot) => lot._id);
+    }
     if (await User.exists({ email })) return res.status(409).json({ message: 'Email already registered' });
 
     const passwordHash = await bcrypt.hash(password, 10);
-    const user = await User.create({ name, email, passwordHash, role });
+    const user = await User.create({ name, email, passwordHash, role, ...(role === 'guard' ? { assignedLots: body.assignedLots } : {}) });
     res.status(201).json(user);
   } catch (err) {
     if (err.code === 11000) return res.status(409).json({ message: 'Email already registered' });
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const assignGuardLots = async (req, res) => {
+  try {
+    const { assignedLots } = req.body ?? {};
+    if (!Array.isArray(assignedLots))
+      return res.status(400).json({ message: 'assignedLots must be an array of parking lot IDs' });
+    if (assignedLots.some((id) => !mongoose.isValidObjectId(id)))
+      return res.status(400).json({ message: 'One or more assigned parking lots are invalid' });
+    const uniqueIds = [...new Set(assignedLots.map(String))];
+    const lots = uniqueIds.length ? await ParkingLot.find({ _id: { $in: uniqueIds } }).select('_id') : [];
+    if (lots.length !== uniqueIds.length)
+      return res.status(400).json({ message: 'One or more assigned parking lots were not found' });
+    const guard = await User.findOne({ _id: req.params.id, role: 'guard' });
+    if (!guard) return res.status(404).json({ message: 'Guard not found' });
+    guard.assignedLots = lots.map((lot) => lot._id);
+    await guard.save();
+    const updated = await User.findById(guard._id)
+      .select('_id name email role assignedLots createdAt')
+      .populate('assignedLots', 'name address');
+    res.json(updated);
+  } catch (err) {
     res.status(500).json({ message: err.message });
   }
 };

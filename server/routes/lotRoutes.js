@@ -15,6 +15,6 @@ router.get('/nearby', protect, getNearbyLots);
 router.get('/', protect, authorize('admin'), getAllLots);
 router.get('/:id', protect, getLotById);
 router.get('/:id/slots', protect, getLotSlots);
-router.post('/', protect, authorize('admin'), createLot);
+router.post('/', protect, authorize('admin', 'platform_admin', 'owner'), createLot);
 
 export default router;

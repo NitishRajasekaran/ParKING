@@ -1,6 +1,7 @@
 import ParkingLot from '../models/ParkingLot.js';
 import Slot from '../models/Slot.js';
 import { getIo } from '../config/io.js';
+import { withTransaction } from '../utils/transaction.js';
 import mongoose from 'mongoose';
 
 // Generate labels A1–A10, B1–B10, … for a given total count
@@ -44,33 +45,36 @@ export const createLot = async (req, res) => {
     if (!Number.isInteger(parsedTotalSlots) || parsedTotalSlots < 1 || parsedTotalSlots > 260)
       return res.status(400).json({ message: 'totalSlots must be a positive integer no greater than 260' });
 
-    const session = await mongoose.startSession();
     let lot;
-    try {
-      await session.withTransaction(async () => {
-        const [createdLot] = await ParkingLot.create([{
-          name: name.trim(),
-          address: address.trim(),
-          location: {
-            type: 'Point',
-            coordinates: [parsedLongitude, parsedLatitude],
-          },
-          totalSlots: parsedTotalSlots,
-          hourlyRate: parsedHourlyRate,
-          createdBy: req.user._id,
-        }], { session });
-        lot = createdLot;
+    await withTransaction(async (session) => {
+      const [createdLot] = await ParkingLot.create([{
+        name: name.trim(),
+        address: address.trim(),
+        location: {
+          type: 'Point',
+          coordinates: [parsedLongitude, parsedLatitude],
+        },
+        totalSlots: parsedTotalSlots,
+        hourlyRate: parsedHourlyRate,
+        createdBy: req.user._id,
+        owner: req.user.role === 'owner' ? req.user._id : (req.body.owner || null),
+      }], { session });
+      lot = createdLot;
 
-        const slotDocs = generateSlotLabels(parsedTotalSlots).map((label) => ({
-          lot: createdLot._id,
-          label,
-          status: 'available',
-        }));
+      const slotDocs = generateSlotLabels(parsedTotalSlots).map((label) => ({
+        lot: createdLot._id,
+        label,
+        status: 'available',
+      }));
+      try {
         await Slot.insertMany(slotDocs, { session });
-      });
-    } finally {
-      await session.endSession();
-    }
+      } catch (insertErr) {
+        if (!session) {
+          await ParkingLot.findByIdAndDelete(createdLot._id);
+        }
+        throw insertErr;
+      }
+    });
 
     // Notify all connected clients that a new lot exists
     getIo().emit('lot:created', lot);
@@ -83,24 +87,36 @@ export const createLot = async (req, res) => {
 
 export const getNearbyLots = async (req, res) => {
   try {
-    const { lat, lng } = req.query;
+    const { lat, lng, radius } = req.query;
     if (!lat || !lng)
       return res.status(400).json({ message: 'lat and lng query parameters are required' });
+
+    const maxDistance = radius ? Math.min(Math.max(Number(radius), 100), 100000) : 5000;
 
     const lots = await ParkingLot.find({
       location: {
         $near: {
           $geometry: { type: 'Point', coordinates: [parseFloat(lng), parseFloat(lat)] },
-          $maxDistance: 5000, // 5 km radius
+          $maxDistance: maxDistance,
         },
       },
     });
 
-    // Attach live availability count to each lot
+    // Attach live availability count and slot metrics to each lot
     const result = await Promise.all(
       lots.map(async (lot) => {
-        const availableCount = await Slot.countDocuments({ lot: lot._id, status: 'available' });
-        return { ...lot.toObject(), availableCount };
+        const [availableSlots, occupiedSlots, reservedSlots] = await Promise.all([
+          Slot.countDocuments({ lot: lot._id, status: 'available' }),
+          Slot.countDocuments({ lot: lot._id, status: 'occupied' }),
+          Slot.countDocuments({ lot: lot._id, status: 'reserved' }),
+        ]);
+        return {
+          ...lot.toObject(),
+          availableCount: availableSlots,
+          availableSlots,
+          occupiedSlots,
+          reservedSlots,
+        };
       })
     );
 
@@ -112,10 +128,22 @@ export const getNearbyLots = async (req, res) => {
 
 export const getLotById = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ message: 'Invalid parking lot ID' });
     const lot = await ParkingLot.findById(req.params.id).populate('createdBy', 'name');
     if (!lot) return res.status(404).json({ message: 'Parking lot not found' });
-    const availableCount = await Slot.countDocuments({ lot: lot._id, status: 'available' });
-    res.json({ ...lot.toObject(), availableCount });
+    const [availableSlots, occupiedSlots, reservedSlots] = await Promise.all([
+      Slot.countDocuments({ lot: lot._id, status: 'available' }),
+      Slot.countDocuments({ lot: lot._id, status: 'occupied' }),
+      Slot.countDocuments({ lot: lot._id, status: 'reserved' }),
+    ]);
+    res.json({
+      ...lot.toObject(),
+      availableCount: availableSlots,
+      availableSlots,
+      occupiedSlots,
+      reservedSlots,
+    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
@@ -123,6 +151,8 @@ export const getLotById = async (req, res) => {
 
 export const getLotSlots = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id))
+      return res.status(400).json({ message: 'Invalid parking lot ID' });
     const slots = await Slot.find({ lot: req.params.id }).sort({ label: 1 });
     res.json(slots);
   } catch (err) {
@@ -134,8 +164,27 @@ export const getAllLots = async (req, res) => {
   try {
     const lots = await ParkingLot.find()
       .sort({ createdAt: -1 })
-      .populate('createdBy', 'name email');
-    res.json(lots);
+      .populate('createdBy', 'name email')
+      .populate('owner', 'name email');
+
+    const lotsWithOccupancy = await Promise.all(
+      lots.map(async (lot) => {
+        const [availableSlots, occupiedSlots, reservedSlots] = await Promise.all([
+          Slot.countDocuments({ lot: lot._id, status: 'available' }),
+          Slot.countDocuments({ lot: lot._id, status: 'occupied' }),
+          Slot.countDocuments({ lot: lot._id, status: 'reserved' }),
+        ]);
+        return {
+          ...lot.toObject(),
+          availableCount: availableSlots,
+          availableSlots,
+          occupiedSlots,
+          reservedSlots,
+        };
+      })
+    );
+
+    res.json(lotsWithOccupancy);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

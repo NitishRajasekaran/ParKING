@@ -4,7 +4,7 @@ export type Role = "driver" | "guard" | "owner" | "platform_admin" | "admin";
 export interface User { _id: string; name: string; email: string; role: Role; ownerStatus?: "none" | "pending" | "approved" | "rejected"; ownerId?: string | null; assignedLots?: string[] }
 export interface AuthResponse { token: string; user: User }
 export type StaffRole = "platform_admin" | "guard";
-export interface StaffUser extends User { createdAt: string }
+export interface StaffUser extends Omit<User, "assignedLots"> { assignedLots?: Array<string | { _id: string; name: string }>; createdAt: string }
 export interface OwnerApplication extends User { role: "owner"; ownerStatus: "pending" | "approved" | "rejected"; createdAt: string; updatedAt?: string }
 export type OwnerGuard = Omit<User, "assignedLots"> & { role: "guard"; assignedLots: Array<string | { _id: string; name: string; address?: string }>; createdAt?: string };
 export interface OwnerStatus { userId: string; name: string; email: string; role: "owner"; ownerStatus: "pending" | "approved" | "rejected"; createdAt?: string; updatedAt?: string }
@@ -18,7 +18,8 @@ export interface Lot {
   location?: { type: "Point"; coordinates: [number, number] };
   totalSlots: number;
   hourlyRate: number;
-  availableSlots: number;
+  availableSlots?: number;
+  availableCount?: number;
   occupiedSlots?: number;
   reservedSlots?: number;
   owner?: Ref | null;
@@ -28,14 +29,18 @@ export interface Slot { _id: string; lot: string; label: string; status: SlotSta
 export interface Reservation { _id: string; user?: string; lot: Ref; slot: Ref; status: "reserved" | "checked_in" | "completed"; createdAt: string }
 export type TicketStatus = "issued" | "entered" | "exited";
 export interface Ticket {
-  _id: string; reservation: string | { _id: string; slot: Ref }; user?: Ref; lot: Ref; qrToken: string;
+  _id: string; reservation: string | { _id: string; slot: Ref }; user?: Ref; lot: Ref; qrToken: string; ticketCode?: string;
   status: TicketStatus; enteredAt?: string | null; exitedAt?: string | null; amount?: number | null;
 }
 export interface ValidateResponse { valid: boolean; ticket?: Ticket }
 export interface OccupancyPoint { timestamp: string; occupiedCount: number; totalSlots: number }
 export interface OccupancyResponse { lotsWithOccupancy: unknown[]; snapshots: OccupancyPoint[] }
 
-export const API_BASE = (import.meta.env["VITE_API_URL"] as string | undefined)?.replace(/\/$/, "") ?? "";
+const configuredApiUrl = (import.meta.env["VITE_API_URL"] as string | undefined)?.trim();
+// In development use the same-origin Vite proxy; phone URLs then need no IP in source.
+export const API_BASE = import.meta.env.DEV || !configuredApiUrl || configuredApiUrl === "/api"
+  ? ""
+  : configuredApiUrl.replace(/\/$/, "");
 export const TOKEN_KEY = "parking_token";
 
 export const http = axios.create({ baseURL: API_BASE || "/api" });
@@ -123,8 +128,10 @@ export const adminApi = {
   occupancy: () => http.get<OccupancyResponse>("/admin/metrics/occupancy").then((r) => r.data),
   lots: () => http.get<Lot[]>("/admin/lots").then((r) => r.data),
   staff: () => http.get<StaffUser[]>("/admin/users").then((r) => r.data),
-  createStaff: (body: { name: string; email: string; password: string; role: StaffRole }) =>
+  createStaff: (body: { name: string; email: string; password: string; role: StaffRole; assignedLots?: string[] }) =>
     http.post<StaffUser>("/admin/users", body).then((r) => r.data),
+  assignGuardLots: (id: string, assignedLots: string[]) =>
+    http.patch<StaffUser>(`/admin/users/${id}/assign-lots`, { assignedLots }).then((r) => r.data),
   owners: (status?: string) => http.get<OwnerApplication[]>("/admin/owners", { params: status ? { status } : undefined }).then((r) => r.data),
   pendingOwners: () => http.get<OwnerApplication[]>("/admin/owners/pending").then((r) => r.data),
   approveOwner: (id: string) => http.post<OwnerApplication>(`/admin/owners/${id}/approve`).then((r) => r.data),
@@ -137,7 +144,7 @@ const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : u
 export function occupiedOf(l: Lot): number {
   const o = num(l.occupiedSlots);
   if (o !== undefined) return o;
-  const t = num(l.totalSlots), a = num(l.availableSlots);
+  const t = num(l.totalSlots), a = num(l.availableSlots ?? l.availableCount);
   return t !== undefined && a !== undefined ? Math.max(0, t - a) : 0;
 }
-export const availableOf = (l: Lot) => num(l.availableSlots) ?? 0;
+export const availableOf = (l: Lot) => num(l.availableSlots) ?? num(l.availableCount) ?? 0;

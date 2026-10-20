@@ -26,4 +26,21 @@ describe("portal login session handling", () => {
       localStorage.clear();
     }
   });
+
+  it("clears the persisted session on logout", async () => {
+    localStorage.clear();
+    let doLogout = () => {};
+    function Probe() {
+      const auth = useAuth();
+      doLogout = auth.logout;
+      return null;
+    }
+    const view = render(<AuthProvider><Probe /></AuthProvider>);
+    localStorage.setItem(TOKEN_KEY, "session-token");
+    localStorage.setItem("parking_user", JSON.stringify({ _id: "u1", role: "driver" }));
+    doLogout();
+    expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
+    expect(localStorage.getItem("parking_user")).toBeNull();
+    view.unmount();
+  });
 });

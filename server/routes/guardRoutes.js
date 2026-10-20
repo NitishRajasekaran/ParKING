@@ -4,8 +4,8 @@ import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
-router.post('/validate', protect, authorize('guard'), validateTicket);
-router.post('/entry', protect, authorize('guard'), confirmEntry);
-router.post('/exit', protect, authorize('guard'), confirmExit);
+router.post('/validate', protect, authorize('guard', 'platform_admin', 'admin', 'owner'), validateTicket);
+router.post('/entry', protect, authorize('guard', 'platform_admin', 'admin', 'owner'), confirmEntry);
+router.post('/exit', protect, authorize('guard', 'platform_admin', 'admin', 'owner'), confirmExit);
 
 export default router;

@@ -13,8 +13,8 @@ import { protect, authorize, requireApprovedOwner } from '../middleware/auth.js'
 
 const router = express.Router();
 
-// Owner application status check for any authenticated owner (including pending/rejected)
-router.get('/status', protect, authorize('owner'), getOwnerApplicationStatus);
+// Owner application status check for any authenticated owner (including pending/rejected) or admin
+router.get('/status', protect, authorize('owner', 'platform_admin', 'admin'), getOwnerApplicationStatus);
 
 // Approved Owner-only routes
 router.get('/lots', protect, requireApprovedOwner, getOwnerLots);

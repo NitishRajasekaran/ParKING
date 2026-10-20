@@ -2,6 +2,7 @@ import Slot from '../models/Slot.js';
 import Reservation from '../models/Reservation.js';
 import Ticket from '../models/Ticket.js';
 import mongoose from 'mongoose';
+import { withTransaction } from '../utils/transaction.js';
 import { createOccupancySnapshot } from '../services/occupancyService.js';
 import { getIo } from '../config/io.js';
 
@@ -22,50 +23,45 @@ export const updateSlotState = async (req, res) => {
     if (!['available', 'occupied'].includes(status))
       return res.status(400).json({ message: 'Simulator may only set status to available or occupied' });
 
-    const session = await mongoose.startSession();
     let slot;
     let conflict = false;
     let slotFound = false;
 
-    try {
-      await session.withTransaction(async () => {
-        slot = undefined;
-        conflict = false;
-        slotFound = false;
+    await withTransaction(async (session) => {
+      slot = undefined;
+      conflict = false;
+      slotFound = false;
 
-        const currentSlot = await Slot.findById(slotId).session(session);
-        if (!currentSlot) return;
-        slotFound = true;
+      const currentSlot = await Slot.findById(slotId).session(session);
+      if (!currentSlot) return;
+      slotFound = true;
 
-        if (currentSlot.status === 'reserved') {
+      if (currentSlot.status === 'reserved') {
+        conflict = true;
+        return;
+      }
+
+      if (currentSlot.status === 'occupied' && status === 'available') {
+        const slotReservations = await Reservation.find({ slot: currentSlot._id })
+          .select('_id').session(session);
+        const activeEnteredTicket = await Ticket.exists({
+          reservation: { $in: slotReservations.map(({ _id }) => _id) },
+          status: 'entered',
+        }).session(session);
+
+        if (activeEnteredTicket) {
           conflict = true;
           return;
         }
+      }
 
-        if (currentSlot.status === 'occupied' && status === 'available') {
-          const slotReservations = await Reservation.find({ slot: currentSlot._id })
-            .select('_id').session(session);
-          const activeEnteredTicket = await Ticket.exists({
-            reservation: { $in: slotReservations.map(({ _id }) => _id) },
-            status: 'entered',
-          }).session(session);
-
-          if (activeEnteredTicket) {
-            conflict = true;
-            return;
-          }
-        }
-
-        slot = await Slot.findOneAndUpdate(
-          { _id: currentSlot._id, status: currentSlot.status },
-          { $set: { status } },
-          { new: true, session }
-        );
-        if (!slot) conflict = true;
-      });
-    } finally {
-      await session.endSession();
-    }
+      slot = await Slot.findOneAndUpdate(
+        { _id: currentSlot._id, status: currentSlot.status },
+        { $set: { status } },
+        { new: true, session }
+      );
+      if (!slot) conflict = true;
+    });
 
     if (!slotFound) return res.status(404).json({ message: 'Slot not found' });
     if (conflict) {

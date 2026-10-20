@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { ArrowLeft, Car, Check, Clock, IndianRupee, Lock, MapPin, QrCode, SquareParking } from "lucide-react";
 import { errorMessage, reservationsApi, statusOf, type Slot, type SlotStatus, type Ticket } from "@/lib/api";
 import { lotQuery, slotsQuery } from "@/lib/hooks";
@@ -25,13 +26,14 @@ function LotPage() {
   useEffect(() => {
     const s = getSocket();
     const join = () => s.emit("lot:join", { lotId: id });
-    const onSlot = (p: { lotId: string; slotId: string; status: SlotStatus }) => {
-      if (p.lotId !== id) return;
-      qc.setQueryData<Slot[]>(["slots", id], (old) => old?.map((x) => (x._id === p.slotId ? { ...x, status: p.status } : x)));
-      setSel((cur) => (cur && cur._id === p.slotId && p.status !== "available" ? null : cur));
+    const onSlot = (slot: Slot) => {
+      const slotLotId = typeof slot.lot === "string" ? slot.lot : (slot.lot as { _id: string })?._id;
+      if (slotLotId !== id) return;
+      qc.setQueryData<Slot[]>(["slots", id], (old) => old?.map((x) => (x._id === slot._id ? { ...x, status: slot.status } : x)));
+      setSel((cur) => (cur && cur._id === slot._id && slot.status !== "available" ? null : cur));
     };
-    const onAvail = (p: { lotId: string; available: number }) => {
-      if (p.lotId === id) qc.setQueryData(["lot", id], (old: object | undefined) => (old ? { ...old, availableSlots: p.available } : old));
+    const onAvail = (p: { lotId: string; availableCount: number }) => {
+      if (p.lotId === id) qc.setQueryData(["lot", id], (old: object | undefined) => (old ? { ...old, availableCount: p.availableCount } : old));
     };
     const onReconnect = () => { join(); qc.invalidateQueries({ queryKey: ["slots", id] }); };
     join();
@@ -58,13 +60,27 @@ function LotPage() {
     setBusy(true); setErr("");
     try {
       const r = await reservationsApi.create(id, sel._id);
-      setDone({ ticket: r.ticket, slot: sel, at: r.reservation.createdAt });
+      const newTicket = r.ticket;
+      setDone({ ticket: newTicket, slot: sel, at: r.reservation.createdAt });
       setConfirm(false); setSel(null);
+
+      // Seed query cache immediately so My Tickets and Ticket Detail have the ticket
+      qc.setQueryData<Ticket[]>(["tickets"], (old) => {
+        const existing = old ?? [];
+        return existing.some((t) => t._id === newTicket._id)
+          ? existing.map((t) => (t._id === newTicket._id ? newTicket : t))
+          : [newTicket, ...existing];
+      });
+      qc.setQueryData(["ticket", newTicket._id], newTicket);
+
+      // Invalidate queries so fresh data is guaranteed on any fetch
       qc.invalidateQueries({ queryKey: ["tickets"] });
       qc.invalidateQueries({ queryKey: ["slots", id] });
+      qc.invalidateQueries({ queryKey: ["lot", id] });
     } catch (e) {
-      setConfirm(false); setSel(null);
-      setErr(statusOf(e) === 409 ? "This slot was just taken. Please choose another slot." : errorMessage(e));
+      const msg = statusOf(e) === 409 ? "This slot was just taken. Please choose another slot." : errorMessage(e);
+      setErr(msg);
+      toast.error(msg);
       qc.invalidateQueries({ queryKey: ["slots", id] });
     } finally { setBusy(false); }
   };
@@ -125,7 +141,7 @@ function LotPage() {
             <div className="text-sm text-muted-foreground">Selected</div>
             <div className="text-2xl font-black">{sel?.label ?? "—"}</div>
           </div>
-          <Btn className="flex-1" disabled={!sel} onClick={() => setConfirm(true)}>Reserve Slot</Btn>
+          <Btn className="flex-1" disabled={!sel} onClick={() => { setErr(""); setConfirm(true); }}>Reserve Slot</Btn>
         </div>
       </div>
 
@@ -133,13 +149,14 @@ function LotPage() {
         <div className="fixed inset-0 z-[1000] grid place-items-end bg-foreground/40 sm:place-items-center" role="dialog" aria-modal="true" onClick={() => !busy && setConfirm(false)}>
           <div className="w-full max-w-md rounded-t-3xl bg-background p-6 animate-pop sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-3xl font-black">Reserve {sel.label}?</h2>
+            {err && <div className="mt-3"><Notice kind="error">{err}</Notice></div>}
             <div className="mt-5 space-y-4">
               <Stat icon={<SquareParking className="size-6" />} label="Parking" value={lot.data.name} />
               <Stat icon={<IndianRupee className="size-6" />} label="Rate" value={`₹${lot.data.hourlyRate} / hour`} />
             </div>
             <div className="mt-6 flex flex-col gap-3">
               <Btn loading={busy} onClick={reserve}><Check className="size-6" />Confirm Reservation</Btn>
-              <Btn variant="secondary" disabled={busy} onClick={() => setConfirm(false)}>Cancel</Btn>
+              <Btn variant="secondary" disabled={busy} onClick={() => { setConfirm(false); setErr(""); }}>Cancel</Btn>
             </div>
           </div>
         </div>

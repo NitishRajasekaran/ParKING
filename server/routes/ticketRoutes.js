@@ -5,7 +5,7 @@ import { protect, authorize } from '../middleware/auth.js';
 const router = express.Router();
 
 // /mine must come before /:id
-router.get('/mine', protect, authorize('driver'), getMyTickets);
-router.get('/:id', protect, authorize('driver'), getTicketById);
+router.get('/mine', protect, getMyTickets);
+router.get('/:id', protect, getTicketById);
 
 export default router;

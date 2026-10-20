@@ -56,9 +56,13 @@ export function RoleShell({ role, nav, title }: { role: Role; nav: NavItem[]; ti
       </aside>
 
       {/* Mobile header */}
-      <header className="sticky top-0 z-[500] flex h-14 items-center justify-between border-b border-border bg-background/95 px-4 backdrop-blur md:hidden">
-        <Logo />
-        <span className="text-sm font-semibold text-muted-foreground">{title}</span>
+      <header className="sticky top-0 z-[500] flex h-14 items-center justify-between gap-2 border-b border-border bg-background/95 px-3 backdrop-blur md:hidden">
+        <Logo className="shrink-0" />
+        <span className="min-w-0 flex-1 truncate text-right text-sm font-semibold text-muted-foreground">{title}</span>
+        <button type="button" onClick={signOut} aria-label="Sign out" title="Sign out"
+          className="grid size-11 shrink-0 place-items-center rounded-xl border border-border hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2">
+          <LogOut className="size-5" />
+        </button>
       </header>
 
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 pb-28 pt-5 md:px-8 md:pb-10 md:pt-8 animate-page">

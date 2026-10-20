@@ -6,6 +6,7 @@ import OccupancySnapshot from '../models/OccupancySnapshot.js';
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
 import { getIo } from '../config/io.js';
+import { withTransaction } from '../utils/transaction.js';
 
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -24,7 +25,9 @@ const generateSlotLabels = (total) => {
 // GET /api/owner/lots — returns lots owned by this approved owner
 export const getOwnerLots = async (req, res) => {
   try {
-    const lots = await ParkingLot.find({ owner: req.user._id }).sort({ createdAt: -1 });
+    const lots = await ParkingLot.find({
+      $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
+    }).sort({ createdAt: -1 });
 
     const lotsWithOccupancy = await Promise.all(
       lots.map(async (lot) => {
@@ -86,34 +89,36 @@ export const createOwnerLot = async (req, res) => {
     if (!Number.isInteger(parsedTotalSlots) || parsedTotalSlots < 1 || parsedTotalSlots > 260)
       return res.status(400).json({ message: 'totalSlots must be a positive integer no greater than 260' });
 
-    const session = await mongoose.startSession();
     let lot;
-    try {
-      await session.withTransaction(async () => {
-        const [createdLot] = await ParkingLot.create([{
-          name: name.trim(),
-          address: address.trim(),
-          location: {
-            type: 'Point',
-            coordinates: [parsedLongitude, parsedLatitude],
-          },
-          totalSlots: parsedTotalSlots,
-          hourlyRate: parsedHourlyRate,
-          createdBy: req.user._id,
-          owner: req.user._id,
-        }], { session });
-        lot = createdLot;
+    await withTransaction(async (session) => {
+      const [createdLot] = await ParkingLot.create([{
+        name: name.trim(),
+        address: address.trim(),
+        location: {
+          type: 'Point',
+          coordinates: [parsedLongitude, parsedLatitude],
+        },
+        totalSlots: parsedTotalSlots,
+        hourlyRate: parsedHourlyRate,
+        createdBy: req.user._id,
+        owner: req.user._id,
+      }], { session });
+      lot = createdLot;
 
-        const slotDocs = generateSlotLabels(parsedTotalSlots).map((label) => ({
-          lot: createdLot._id,
-          label,
-          status: 'available',
-        }));
+      const slotDocs = generateSlotLabels(parsedTotalSlots).map((label) => ({
+        lot: createdLot._id,
+        label,
+        status: 'available',
+      }));
+      try {
         await Slot.insertMany(slotDocs, { session });
-      });
-    } finally {
-      await session.endSession();
-    }
+      } catch (insertErr) {
+        if (!session) {
+          await ParkingLot.findByIdAndDelete(createdLot._id);
+        }
+        throw insertErr;
+      }
+    });
 
     getIo().emit('lot:created', lot);
     res.status(201).json(lot);
@@ -122,10 +127,21 @@ export const createOwnerLot = async (req, res) => {
   }
 };
 
-// GET /api/owner/guards — list guards created by this owner
+// GET /api/owner/guards — list guards created by or assigned to this owner's lots
 export const getOwnerGuards = async (req, res) => {
   try {
-    const guards = await User.find({ role: 'guard', ownerId: req.user._id })
+    const ownerLots = await ParkingLot.find({
+      $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
+    }).select('_id');
+    const ownerLotIds = ownerLots.map((l) => l._id);
+
+    const guards = await User.find({
+      role: 'guard',
+      $or: [
+        { ownerId: req.user._id },
+        { assignedLots: { $in: ownerLotIds } },
+      ],
+    })
       .select('_id name email role assignedLots createdAt')
       .populate('assignedLots', 'name address')
       .sort({ createdAt: 1 });
@@ -147,7 +163,8 @@ export const createOwnerGuard = async (req, res) => {
       return res.status(400).json({ message: 'name, email and password are required' });
     if (!validEmail(email)) return res.status(400).json({ message: 'Enter a valid email address' });
     if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
-    if (!Array.isArray(assignedLots)) return res.status(400).json({ message: 'assignedLots must be an array of lot IDs' });
+    if (!Array.isArray(assignedLots) || assignedLots.length === 0) return res.status(400).json({ message: 'Assign at least one parking lot to a guard' });
+    if (assignedLots.some((id) => !mongoose.isValidObjectId(id))) return res.status(400).json({ message: 'One or more assigned parking lots are invalid' });
 
     if (await User.exists({ email })) return res.status(409).json({ message: 'Email already registered' });
 
@@ -156,10 +173,12 @@ export const createOwnerGuard = async (req, res) => {
     if (Array.isArray(assignedLots) && assignedLots.length > 0) {
       const ownedLots = await ParkingLot.find({
         _id: { $in: assignedLots },
-        owner: req.user._id,
+        $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
       }).select('_id');
       validLotIds = ownedLots.map((l) => l._id);
     }
+    if (validLotIds.length !== new Set(assignedLots.map(String)).size)
+      return res.status(400).json({ message: 'Guards can only be assigned to your parking lots' });
 
     const passwordHash = await bcrypt.hash(password, 10);
     const guard = await User.create({
@@ -192,16 +211,32 @@ export const assignGuardLots = async (req, res) => {
       return res.status(400).json({ message: 'assignedLots must be an array of lot IDs' });
     }
 
-    const guard = await User.findOne({ _id: id, role: 'guard', ownerId: req.user._id });
-    if (!guard) return res.status(404).json({ message: 'Guard account not found for this owner' });
-
-    // Validate that all requested lots belong to this owner
-    const ownedLots = await ParkingLot.find({
-      _id: { $in: assignedLots },
-      owner: req.user._id,
+    const allOwnedLots = await ParkingLot.find({
+      $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
     }).select('_id');
+    const ownedLotIdSet = new Set(allOwnedLots.map((l) => l._id.toString()));
 
-    guard.assignedLots = ownedLots.map((l) => l._id);
+    const guard = await User.findOne({
+      _id: id,
+      role: 'guard',
+      $or: [
+        { ownerId: req.user._id },
+        { assignedLots: { $in: Array.from(ownedLotIdSet).map((lid) => new mongoose.Types.ObjectId(lid)) } },
+      ],
+    });
+    if (!guard) return res.status(404).json({ message: 'Guard account not found or not associated with your parking lots' });
+
+    // Keep lots that belong to other owners or are not owned by this owner
+    const otherLots = (guard.assignedLots || []).filter(
+      (lotId) => !ownedLotIdSet.has(lotId.toString())
+    );
+
+    // Filter incoming assignedLots to only those actually owned by this owner
+    const validAssignedLotsFromOwner = assignedLots
+      .filter((lotId) => mongoose.isValidObjectId(lotId) && ownedLotIdSet.has(lotId.toString()))
+      .map((lotId) => new mongoose.Types.ObjectId(lotId));
+
+    guard.assignedLots = [...otherLots, ...validAssignedLotsFromOwner];
     await guard.save();
 
     const updated = await User.findById(guard._id)
@@ -217,7 +252,9 @@ export const assignGuardLots = async (req, res) => {
 // GET /api/owner/metrics/revenue — revenue restricted to owner's lots
 export const getOwnerRevenue = async (req, res) => {
   try {
-    const ownerLots = await ParkingLot.find({ owner: req.user._id }).select('_id name');
+    const ownerLots = await ParkingLot.find({
+      $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
+    }).select('_id name');
     const lotIds = ownerLots.map((l) => l._id);
 
     if (lotIds.length === 0) {
@@ -262,7 +299,9 @@ export const getOwnerRevenue = async (req, res) => {
 // GET /api/owner/metrics/occupancy — occupancy restricted to owner's lots
 export const getOwnerOccupancy = async (req, res) => {
   try {
-    const lots = await ParkingLot.find({ owner: req.user._id });
+    const lots = await ParkingLot.find({
+      $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
+    });
     const lotIds = lots.map((l) => l._id);
 
     if (lotIds.length === 0) {
