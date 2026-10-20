@@ -189,3 +189,45 @@ export const getAllLots = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+export const deleteSlot = async (req, res) => {
+  try {
+    const { lotId, slotId } = req.params;
+    if (!mongoose.isValidObjectId(lotId) || !mongoose.isValidObjectId(slotId)) {
+      return res.status(400).json({ message: 'Invalid lot or slot ID format' });
+    }
+
+    const lot = await ParkingLot.findById(lotId);
+    if (!lot) return res.status(404).json({ message: 'Parking lot not found' });
+
+    const isOwner =
+      req.user.role === 'owner' &&
+      (String(lot.owner) === String(req.user._id) || String(lot.createdBy) === String(req.user._id));
+    const isAdmin = ['platform_admin', 'admin'].includes(req.user.role);
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Forbidden: You do not have permission to manage this lot' });
+    }
+
+    const slot = await Slot.findOne({ _id: slotId, lot: lotId });
+    if (!slot) return res.status(404).json({ message: 'Slot not found in this lot' });
+
+    if (slot.status !== 'available') {
+      return res.status(400).json({ message: `Cannot delete slot with status '${slot.status}'. Only available slots can be deleted.` });
+    }
+
+    await Slot.findByIdAndDelete(slotId);
+    await ParkingLot.findByIdAndUpdate(lotId, { $inc: { totalSlots: -1 } });
+
+    const availableCount = await Slot.countDocuments({ lot: lotId, status: 'available' });
+    const io = getIo();
+    if (io) {
+      io.to(`lot:${lotId}`).emit('slot:deleted', { lotId, slotId });
+      io.to(`lot:${lotId}`).emit('lot:availability', { lotId, availableCount });
+    }
+
+    res.json({ message: 'Slot deleted successfully', slotId });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+

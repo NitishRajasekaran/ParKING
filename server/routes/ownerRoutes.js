@@ -6,6 +6,7 @@ import {
   getOwnerGuards,
   createOwnerGuard,
   assignGuardLots,
+  deleteOwnerGuard,
   getOwnerRevenue,
   getOwnerOccupancy,
 } from '../controllers/ownerController.js';
@@ -23,6 +24,7 @@ router.post('/lots', protect, requireApprovedOwner, createOwnerLot);
 router.get('/guards', protect, requireApprovedOwner, getOwnerGuards);
 router.post('/guards', protect, requireApprovedOwner, createOwnerGuard);
 router.patch('/guards/:id/assign', protect, requireApprovedOwner, assignGuardLots);
+router.delete('/guards/:id', protect, requireApprovedOwner, deleteOwnerGuard);
 
 router.get('/metrics/revenue', protect, requireApprovedOwner, getOwnerRevenue);
 router.get('/metrics/occupancy', protect, requireApprovedOwner, getOwnerOccupancy);

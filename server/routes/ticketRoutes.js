@@ -1,11 +1,18 @@
 import express from 'express';
-import { getMyTickets, getTicketById } from '../controllers/ticketController.js';
-import { protect, authorize } from '../middleware/auth.js';
+import {
+  getMyTickets,
+  getTicketById,
+  deleteTicket,
+  deleteUsedTickets,
+} from '../controllers/ticketController.js';
+import { protect } from '../middleware/auth.js';
 
 const router = express.Router();
 
-// /mine must come before /:id
+// /mine and /used must come before /:id
 router.get('/mine', protect, getMyTickets);
+router.delete('/used', protect, deleteUsedTickets);
 router.get('/:id', protect, getTicketById);
+router.delete('/:id', protect, deleteTicket);
 
 export default router;

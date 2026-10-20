@@ -42,3 +42,44 @@ export const getTicketById = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+export const deleteTicket = async (req, res) => {
+  try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ message: 'Invalid ticket ID format' });
+    }
+    const ticket = await Ticket.findById(req.params.id);
+    if (!ticket) return res.status(404).json({ message: 'Ticket not found' });
+
+    // Only exited / used tickets can be deleted
+    if (ticket.status !== 'exited') {
+      return res.status(400).json({ message: 'Only exited (used) tickets can be deleted' });
+    }
+
+    const isOwner = ticket.user.toString() === req.user._id.toString();
+    const isAdmin = ['platform_admin', 'admin'].includes(req.user.role);
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({ message: 'Forbidden' });
+    }
+
+    await Ticket.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Used ticket deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+export const deleteUsedTickets = async (req, res) => {
+  try {
+    const isAdmin = ['platform_admin', 'admin'].includes(req.user.role);
+    const filter = { status: 'exited' };
+    if (!isAdmin) {
+      filter.user = req.user._id;
+    }
+
+    const result = await Ticket.deleteMany(filter);
+    res.json({ message: 'Used tickets deleted successfully', deletedCount: result.deletedCount });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

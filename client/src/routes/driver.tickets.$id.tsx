@@ -97,7 +97,27 @@ function TicketPage() {
             <div className="mt-2 text-lg font-bold">{names.lotName}</div>
             {t.status === "issued" && <p className="mt-4 rounded-xl bg-muted py-3 text-base font-semibold">Show this at entry</p>}
             {t.status === "entered" && <p className="mt-4 rounded-xl bg-muted py-3 text-base font-semibold">Show this at exit</p>}
-            {t.status === "exited" && <p className="mt-4 text-base">Paid: <b>{rupees(t.amount)}</b></p>}
+            {t.status === "exited" && (
+              <div className="mt-4 space-y-3">
+                <p className="text-base">Paid: <b>{rupees(t.amount)}</b></p>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!window.confirm("Delete this used ticket record?")) return;
+                    try {
+                      await ticketsApi.delete(t._id);
+                      await qc.invalidateQueries({ queryKey: ["tickets"] });
+                      window.location.href = "/driver/tickets";
+                    } catch (err) {
+                      alert(errorMessage(err, "Could not delete ticket"));
+                    }
+                  }}
+                  className="inline-flex items-center gap-2 rounded-xl border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10"
+                >
+                  Delete Used Ticket
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

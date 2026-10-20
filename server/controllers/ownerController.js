@@ -339,3 +339,38 @@ export const getOwnerOccupancy = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// DELETE /api/owner/guards/:id — remove a guard
+export const deleteOwnerGuard = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid guard ID format' });
+    }
+
+    const guard = await User.findOne({ _id: id, role: 'guard' });
+    if (!guard) {
+      return res.status(404).json({ message: 'Guard not found' });
+    }
+
+    const isOwnerGuard = guard.ownerId && guard.ownerId.toString() === req.user._id.toString();
+    if (!isOwnerGuard) {
+      const ownedLots = await ParkingLot.find({
+        $or: [{ owner: req.user._id }, { createdBy: req.user._id }],
+      }).select('_id');
+      const ownedLotIdSet = new Set(ownedLots.map((l) => l._id.toString()));
+      const assignedMatches = (guard.assignedLots || []).some((lotId) =>
+        ownedLotIdSet.has(lotId.toString())
+      );
+      if (!assignedMatches) {
+        return res.status(403).json({ message: 'Forbidden: You can only remove your own guards' });
+      }
+    }
+
+    await User.findByIdAndDelete(id);
+    res.json({ message: 'Guard removed successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+

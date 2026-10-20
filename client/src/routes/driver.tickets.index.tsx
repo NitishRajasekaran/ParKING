@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect } from "react";
-import { ChevronRight, RefreshCw, Ticket as TicketIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronRight, RefreshCw, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import { errorMessage, ticketsApi, type Ticket } from "@/lib/api";
 import { useLotSlotNames } from "@/lib/hooks";
 import { btnClass, Btn, Notice, PageTitle, Skel } from "@/components/ui-kit";
@@ -12,6 +12,9 @@ export const Route = createFileRoute("/driver/tickets/")({ component: TicketsPag
 
 function TicketsPage() {
   const qc = useQueryClient();
+  const [clearing, setClearing] = useState(false);
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
+
   const q = useQuery({
     queryKey: ["tickets"],
     queryFn: ticketsApi.mine,
@@ -51,21 +54,62 @@ function TicketsPage() {
 
   const order = { issued: 0, entered: 1, exited: 2 } as const;
   const list = [...(q.data ?? [])].sort((a, b) => order[a.status] - order[b.status]);
+  const hasExited = list.some((t) => t.status === "exited");
+
+  const handleClearUsed = async () => {
+    if (!window.confirm("Delete all your completed / exited tickets?")) return;
+    setClearing(true);
+    setErrorNotice(null);
+    try {
+      await ticketsApi.deleteUsed();
+      await qc.invalidateQueries({ queryKey: ["tickets"] });
+    } catch (e) {
+      setErrorNotice(errorMessage(e, "Could not clear used tickets"));
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleDeleteSingle = async (ticketId: string) => {
+    if (!window.confirm("Delete this used ticket?")) return;
+    setErrorNotice(null);
+    try {
+      await ticketsApi.delete(ticketId);
+      await qc.invalidateQueries({ queryKey: ["tickets"] });
+    } catch (e) {
+      setErrorNotice(errorMessage(e, "Could not delete ticket"));
+    }
+  };
 
   return (
     <div>
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <PageTitle>My Tickets</PageTitle>
-        <button
-          type="button"
-          onClick={() => void q.refetch()}
-          aria-label="Refresh tickets"
-          title="Refresh tickets"
-          className="rounded-xl border border-border p-2 hover:bg-muted"
-        >
-          <RefreshCw className={`size-5 ${q.isFetching ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          {hasExited && (
+            <Btn
+              type="button"
+              variant="secondary"
+              size="md"
+              loading={clearing}
+              onClick={() => void handleClearUsed()}
+              className="text-destructive hover:border-destructive"
+            >
+              <Trash2 className="size-4" /> Clear Used Tickets
+            </Btn>
+          )}
+          <button
+            type="button"
+            onClick={() => void q.refetch()}
+            aria-label="Refresh tickets"
+            title="Refresh tickets"
+            className="rounded-xl border border-border p-2 hover:bg-muted"
+          >
+            <RefreshCw className={`size-5 ${q.isFetching ? "animate-spin" : ""}`} />
+          </button>
+        </div>
       </div>
+      {errorNotice && <div className="mb-4"><Notice kind="error">{errorNotice}</Notice></div>}
       {q.isLoading && <div className="space-y-3"><Skel className="h-24" /><Skel className="h-24" /></div>}
       {q.isError && <Notice kind="error">{errorMessage(q.error)}</Notice>}
       {q.isSuccess && list.length === 0 && (
@@ -81,22 +125,43 @@ function TicketsPage() {
           </div>
         </div>
       )}
-      <div className="grid gap-3 md:grid-cols-2">{list.map((t) => <Row key={t._id} t={t} />)}</div>
+      <div className="grid gap-3 md:grid-cols-2">
+        {list.map((t) => (
+          <Row key={t._id} t={t} onDelete={handleDeleteSingle} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function Row({ t }: { t: Ticket }) {
+function Row({ t, onDelete }: { t: Ticket; onDelete: (id: string) => void }) {
   const slotRef = t.reservation && typeof t.reservation === "object" ? t.reservation.slot : undefined;
   const { lotName, slotLabel } = useLotSlotNames(t.lot, slotRef);
   return (
-    <Link to="/driver/tickets/$id" params={{ id: t._id }} className="press flex items-center gap-4 rounded-2xl border border-border p-4 hover:border-foreground">
-      <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary text-lg font-black text-primary-foreground">{slotLabel}</span>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-lg font-bold">{lotName}</div>
-        <TicketBadge status={t.status} />
-      </div>
-      <ChevronRight className="size-6" />
-    </Link>
+    <div className="flex items-center gap-2">
+      <Link to="/driver/tickets/$id" params={{ id: t._id }} className="press flex flex-1 items-center gap-4 rounded-2xl border border-border p-4 hover:border-foreground">
+        <span className="grid size-14 shrink-0 place-items-center rounded-xl bg-primary text-lg font-black text-primary-foreground">{slotLabel}</span>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-lg font-bold">{lotName}</div>
+          <TicketBadge status={t.status} />
+        </div>
+        <ChevronRight className="size-6" />
+      </Link>
+      {t.status === "exited" && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete(t._id);
+          }}
+          aria-label="Delete used ticket"
+          title="Delete used ticket"
+          className="rounded-xl border border-destructive/40 p-3 text-destructive hover:bg-destructive/10"
+        >
+          <Trash2 className="size-5" />
+        </button>
+      )}
+    </div>
   );
 }

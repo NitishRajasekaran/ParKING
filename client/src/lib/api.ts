@@ -183,6 +183,7 @@ export const refName = (r: Ref | undefined, key: "name" | "label" = "name") =>
 export const authApi = {
   login: (email: string, password: string) => http.post<AuthResponse>("/auth/login", { email, password }).then((r) => r.data),
   register: (name: string, email: string, password: string) => http.post<AuthResponse>("/auth/register", { name, email, password }).then((r) => r.data),
+  forgotPassword: (email: string, password: string) => http.post<{ message: string }>("/auth/forgot-password", { email, password }).then((r) => r.data),
   adminSetupStatus: () => http.get<{ available: boolean }>("/auth/setup-admin/status").then((r) => r.data),
   setupAdmin: (name: string, email: string, password: string) => http.post<AuthResponse>("/auth/setup-admin", { name, email, password }).then((r) => r.data),
   applyOwner: (name: string, email: string, password: string) => http.post<AuthResponse>("/auth/apply-owner", { name, email, password }).then((r) => r.data),
@@ -195,6 +196,8 @@ export const lotsApi = {
   slots: (id: string) => http.get<Slot[]>(`/lots/${id}/slots`).then((r) => r.data),
   create: (body: { name: string; address: string; latitude: number; longitude: number; hourlyRate: number; totalSlots: number }) =>
     http.post<Lot>("/lots", body).then((r) => r.data),
+  deleteSlot: (lotId: string, slotId: string) =>
+    http.delete<{ message: string; slotId: string }>(`/lots/${lotId}/slots/${slotId}`).then((r) => r.data),
 };
 
 export const reservationsApi = {
@@ -205,6 +208,8 @@ export const reservationsApi = {
 export const ticketsApi = {
   mine: () => http.get<Ticket[]>("/tickets/mine").then((r) => r.data),
   get: (id: string) => http.get<Ticket>(`/tickets/${id}`).then((r) => r.data),
+  delete: (id: string) => http.delete<{ message: string }>(`/tickets/${id}`).then((r) => r.data),
+  deleteUsed: () => http.delete<{ message: string; deletedCount: number }>("/tickets/used").then((r) => r.data),
 };
 
 export const guardApi = {
@@ -231,6 +236,8 @@ export const ownerApi = {
     http.post<OwnerGuard>("/owner/guards", body).then((r) => r.data),
   assignGuardLots: (id: string, assignedLots: string[]) =>
     http.patch<OwnerGuard>(`/owner/guards/${id}/assign`, { assignedLots }).then((r) => r.data),
+  deleteGuard: (id: string) =>
+    http.delete<{ message: string }>(`/owner/guards/${id}`).then((r) => r.data),
   revenue: () => http.get<{ totalRevenue: number; totalSessions: number }>("/owner/metrics/revenue").then((r) => r.data),
   occupancy: () => http.get<OccupancyResponse>("/owner/metrics/occupancy").then((r) => r.data),
 };
@@ -239,11 +246,14 @@ export const adminApi = {
   revenue: () => http.get<{ totalRevenue: number; [k: string]: unknown }>("/admin/metrics/revenue").then((r) => r.data),
   occupancy: () => http.get<OccupancyResponse>("/admin/metrics/occupancy").then((r) => r.data),
   lots: () => http.get<Lot[]>("/admin/lots").then((r) => r.data),
+  deleteLot: (id: string) => http.delete<{ message: string }>(`/admin/lots/${id}`).then((r) => r.data),
   staff: () => http.get<StaffUser[]>("/admin/users").then((r) => r.data),
   createStaff: (body: { name: string; email: string; password: string; role: StaffRole; assignedLots?: string[] }) =>
     http.post<StaffUser>("/admin/users", body).then((r) => r.data),
   assignGuardLots: (id: string, assignedLots: string[]) =>
     http.patch<StaffUser>(`/admin/users/${id}/assign-lots`, { assignedLots }).then((r) => r.data),
+  deleteStaff: (id: string) => http.delete<{ message: string }>(`/admin/users/${id}`).then((r) => r.data),
+  clearUsedTickets: () => http.delete<{ message: string; deletedCount: number }>("/tickets/used").then((r) => r.data),
   owners: (status?: string) => http.get<OwnerApplication[]>("/admin/owners", { params: status ? { status } : undefined }).then((r) => r.data),
   pendingOwners: () => http.get<OwnerApplication[]>("/admin/owners/pending").then((r) => r.data),
   approveOwner: (id: string) => http.post<OwnerApplication>(`/admin/owners/${id}/approve`).then((r) => r.data),

@@ -1,8 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Building2, Plus, ShieldCheck } from "lucide-react";
-import { ownerApi, errorMessage, availableOf, occupiedOf } from "@/lib/api";
+import { Plus, ShieldCheck } from "lucide-react";
+import { ownerApi, errorMessage, availableOf } from "@/lib/api";
 import { btnClass, Card, Notice, PageTitle, rupees, Skel } from "@/components/ui-kit";
+import { LotTable } from "@/components/LotTable";
 
 export const Route = createFileRoute("/owner/")({ component: OwnerHome });
 function OwnerHome() {
@@ -18,6 +19,6 @@ function OwnerHome() {
     {lots.isError && <Notice kind="error">{errorMessage(lots.error)}</Notice>}
     <div className="grid gap-3 sm:grid-cols-3"><Card><div className="text-sm text-muted-foreground">Parking lots</div><div className="mt-1 text-3xl font-black">{lots.isLoading ? "..." : items.length}</div></Card><Card><div className="text-sm text-muted-foreground">Available slots</div><div className="mt-1 text-3xl font-black">{lots.isLoading ? "..." : items.reduce((n, lot) => n + availableOf(lot), 0)}</div></Card><Card><div className="text-sm text-muted-foreground">Revenue</div><div className="mt-1 text-3xl font-black">{revenue.isLoading ? "..." : revenue.isError ? "-" : rupees(revenue.data?.totalRevenue)}</div></Card></div>
     <div className="mt-6"><Link to="/owner/guards" className={btnClass("secondary", "md")}><ShieldCheck className="size-5" />Manage Guards</Link></div>
-    <section className="mt-6"><h2 className="mb-3 text-xl font-bold">Your parking lots</h2>{lots.isLoading ? <Skel className="h-36" /> : items.length ? <div className="grid gap-3 md:grid-cols-2">{items.map((lot) => <Card key={lot._id}><h3 className="text-lg font-bold">{lot.name}</h3><p className="text-sm text-muted-foreground">{lot.address}</p><p className="mt-3 text-sm">{occupiedOf(lot)} occupied / {availableOf(lot)} available / {lot.totalSlots} total</p></Card>)}</div> : <Card><Building2 className="size-6" /><p className="mt-2">No parking lots yet.</p></Card>}</section>
+    <section className="mt-6"><h2 className="mb-3 text-xl font-bold">Your parking lots</h2>{lots.isLoading ? <Skel className="h-36" /> : <LotTable lots={items} />}</section>
   </div>;
 }

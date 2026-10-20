@@ -5,6 +5,7 @@ import ParkingLot from '../models/ParkingLot.js';
 import Slot from '../models/Slot.js';
 import OccupancySnapshot from '../models/OccupancySnapshot.js';
 import mongoose from 'mongoose';
+import { getIo } from '../config/io.js';
 
 const validEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
@@ -269,3 +270,46 @@ export const assignLotOwner = async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 };
+
+// DELETE /api/admin/users/:id — remove staff or guard user
+export const deleteStaffUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid user ID format' });
+    }
+    if (String(req.user._id) === String(id)) {
+      return res.status(400).json({ message: 'Cannot delete your own admin account' });
+    }
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    await User.findByIdAndDelete(id);
+    res.json({ message: 'Staff user removed successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+
+// DELETE /api/admin/lots/:id — delete parking lot (master control)
+export const deleteLot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).json({ message: 'Invalid parking lot ID' });
+    }
+    const lot = await ParkingLot.findById(id);
+    if (!lot) {
+      return res.status(404).json({ message: 'Parking lot not found' });
+    }
+    await Slot.deleteMany({ lot: id });
+    await ParkingLot.findByIdAndDelete(id);
+    const io = getIo();
+    if (io) io.emit('lot:deleted', { lotId: id });
+    res.json({ message: 'Parking lot deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};
+

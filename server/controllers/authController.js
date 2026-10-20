@@ -174,3 +174,30 @@ export const login = async (req, res) => {
 };
 
 export const getMe = (req, res) => res.json(req.user);
+
+export const forgotPassword = async (req, res) => {
+  try {
+    const body = req.body ?? {};
+    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
+    const password = body.password;
+    if (!email || typeof password !== 'string')
+      return res.status(400).json({ message: 'email and new password are required' });
+    if (!validEmail(email))
+      return res.status(400).json({ message: 'Enter a valid email address' });
+    if (password.length < 8)
+      return res.status(400).json({ message: 'Password must be at least 8 characters' });
+
+    const user = await User.findOne({ email });
+    if (!user) {
+      return res.status(404).json({ message: 'No account found with this email' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10);
+    user.passwordHash = passwordHash;
+    await user.save();
+
+    res.json({ message: 'Password reset successfully. You can now sign in with your new password.' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+};

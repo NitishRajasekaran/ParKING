@@ -1,9 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Car, CircleParking, IndianRupee, Plus, ShieldCheck, SquareParking } from "lucide-react";
+import { Car, CircleParking, IndianRupee, Plus, ShieldCheck, SquareParking, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import { adminApi, availableOf, errorMessage, occupiedOf, refId, type Lot, type StaffRole, type StaffUser } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { useAdminLive } from "@/lib/admin-live";
 import { Btn, btnClass, Field, Notice, PageTitle, rupees, Skel } from "@/components/ui-kit";
 import { LotTable } from "@/components/LotTable";
@@ -12,6 +13,7 @@ export const Route = createFileRoute("/admin/")({ component: Dashboard });
 
 function Dashboard() {
   useAdminLive();
+  const { user: currentUser } = useAuth();
   const lots = useQuery({ queryKey: ["admin", "lots"], queryFn: adminApi.lots });
   const rev = useQuery({ queryKey: ["admin", "revenue"], queryFn: adminApi.revenue });
   const occ = useQuery({ queryKey: ["admin", "occupancy"], queryFn: adminApi.occupancy });
@@ -25,6 +27,10 @@ function Dashboard() {
   const [staffError, setStaffError] = useState("");
   const [staffNotice, setStaffNotice] = useState("");
   const [staffBusy, setStaffBusy] = useState(false);
+  const [deletingStaffId, setDeletingStaffId] = useState<string | null>(null);
+  const [purgingTickets, setPurgingTickets] = useState(false);
+  const [masterNotice, setMasterNotice] = useState("");
+  const [masterError, setMasterError] = useState("");
 
   const l = lots.data ?? [];
   const available = l.reduce((s, x) => s + availableOf(x), 0);
@@ -34,6 +40,48 @@ function Dashboard() {
     pct: p.totalSlots ? Math.round((p.occupiedCount / p.totalSlots) * 100) : 0,
     n: p.occupiedCount,
   }));
+
+  const handlePurgeTickets = async () => {
+    if (!window.confirm("Purge ALL completed/exited tickets across the entire platform? Active tickets will not be affected.")) return;
+    setPurgingTickets(true);
+    setMasterNotice("");
+    setMasterError("");
+    try {
+      const res = await adminApi.clearUsedTickets();
+      setMasterNotice(`Successfully purged ${res.deletedCount} used ticket(s).`);
+    } catch (e) {
+      setMasterError(errorMessage(e, "Could not purge used tickets"));
+    } finally {
+      setPurgingTickets(false);
+    }
+  };
+
+  const handleDeleteStaff = async (member: StaffUser) => {
+    if (!window.confirm(`Are you sure you want to remove staff member "${member.name}" (${member.email})?`)) return;
+    setDeletingStaffId(member._id);
+    setStaffError("");
+    setStaffNotice("");
+    try {
+      await adminApi.deleteStaff(member._id);
+      setStaffNotice(`Staff member "${member.name}" has been removed.`);
+      await queryClient.invalidateQueries({ queryKey: ["admin", "staff"] });
+    } catch (e) {
+      setStaffError(errorMessage(e, "Could not remove staff account"));
+    } finally {
+      setDeletingStaffId(null);
+    }
+  };
+
+  const handleDeleteLot = async (lotId: string) => {
+    setMasterError("");
+    try {
+      await adminApi.deleteLot(lotId);
+      await queryClient.invalidateQueries({ queryKey: ["admin", "lots"] });
+      setMasterNotice("Parking lot deleted successfully.");
+    } catch (e) {
+      setMasterError(errorMessage(e, "Could not delete parking lot"));
+    }
+  };
 
   return (
     <div>
@@ -50,6 +98,28 @@ function Dashboard() {
         <Metric icon={<Car className="size-6" />} label="Occupied" value={lots.isLoading ? null : occupied} />
         <Metric icon={<IndianRupee className="size-6" />} label="Revenue" value={rev.isLoading ? null : rev.isError ? "—" : rupees(Number.isFinite(rev.data?.totalRevenue) ? rev.data!.totalRevenue : 0)} dark />
       </div>
+
+      <section className="mt-6 rounded-2xl border border-destructive/30 bg-destructive/5 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-bold text-destructive">Master Controls</h2>
+            <p className="text-sm text-muted-foreground">Platform-level maintenance and cleanup actions.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <Btn
+              variant="secondary"
+              size="md"
+              loading={purgingTickets}
+              onClick={() => void handlePurgeTickets()}
+              className="border-destructive/40 text-destructive hover:bg-destructive/10"
+            >
+              <Trash2 className="size-4" /> Purge All Used Tickets
+            </Btn>
+          </div>
+        </div>
+        {masterNotice && <div className="mt-3"><Notice kind="success">{masterNotice}</Notice></div>}
+        {masterError && <div className="mt-3"><Notice kind="error">{masterError}</Notice></div>}
+      </section>
 
       <section className="mt-6 rounded-2xl border border-border p-5">
         <h2 className="mb-4 text-xl font-bold">Occupancy</h2>
@@ -75,7 +145,7 @@ function Dashboard() {
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-xl font-bold">Staff Management</h2>
-            <p className="text-sm text-muted-foreground">Create Admin and Guard accounts.</p>
+            <p className="text-sm text-muted-foreground">Create Admin and Guard accounts, or remove staff.</p>
           </div>
           <div className="flex gap-2">
             <Btn size="md" variant={staffRole === "guard" ? "primary" : "secondary"} onClick={() => { setStaffRole("guard"); setStaffAssignedLots([]); setStaffError(""); setStaffNotice(""); }}><ShieldCheck className="size-5" />Create Guard</Btn>
@@ -114,7 +184,31 @@ function Dashboard() {
           <h3 className="mb-2 text-sm font-bold">Existing staff accounts</h3>
           {staff.isLoading ? <p className="text-sm text-muted-foreground">Loading staff...</p> : staff.isError ? <Notice kind="error">{errorMessage(staff.error)}</Notice> : staff.data?.length ? (
             <ul className="divide-y divide-border">
-              {staff.data.map((member) => <li key={member._id} className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between"><span className="min-w-0 truncate font-semibold">{member.name} <span className="font-normal text-muted-foreground">({member.email})</span></span><span className="shrink-0 self-start rounded-full border border-border px-2 py-1 capitalize">{member.role}</span>{member.role === "guard" && <GuardAssignmentEditor member={member} lots={l} />}</li>)}
+              {staff.data.map((member) => (
+                <li key={member._id} className="flex flex-col gap-2 py-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="min-w-0 truncate font-semibold">
+                      {member.name} <span className="font-normal text-muted-foreground">({member.email})</span>
+                    </span>
+                    <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-xs capitalize">{member.role}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {member.role === "guard" && <GuardAssignmentEditor member={member} lots={l} />}
+                    {member._id !== currentUser?._id && (
+                      <button
+                        type="button"
+                        disabled={deletingStaffId === member._id}
+                        onClick={() => void handleDeleteStaff(member)}
+                        className="rounded-lg border border-destructive/40 p-2 text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                        title="Remove staff member"
+                        aria-label={`Remove staff member ${member.name}`}
+                      >
+                        <Trash2 className="size-4" />
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
             </ul>
           ) : <p className="text-sm text-muted-foreground">No staff accounts yet.</p>}
         </div>
@@ -122,7 +216,7 @@ function Dashboard() {
 
       <section className="mt-6">
         <h2 className="mb-3 text-xl font-bold">Parking lots</h2>
-        {lots.isLoading ? <Skel className="h-40" /> : <LotTable lots={l} />}
+        {lots.isLoading ? <Skel className="h-40" /> : <LotTable lots={l} onDeleteLot={handleDeleteLot} />}
       </section>
     </div>
   );

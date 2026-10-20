@@ -5,6 +5,7 @@ import {
   getLotById,
   getLotSlots,
   getAllLots,
+  deleteSlot,
 } from '../controllers/lotController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
@@ -15,6 +16,7 @@ router.get('/nearby', protect, getNearbyLots);
 router.get('/', protect, authorize('admin'), getAllLots);
 router.get('/:id', protect, getLotById);
 router.get('/:id/slots', protect, getLotSlots);
+router.delete('/:lotId/slots/:slotId', protect, authorize('admin', 'platform_admin', 'owner'), deleteSlot);
 router.post('/', protect, authorize('admin', 'platform_admin', 'owner'), createLot);
 
 export default router;
