@@ -7,7 +7,7 @@ const reservationSchema = new mongoose.Schema(
     slot: { type: mongoose.Schema.Types.ObjectId, ref: 'Slot', required: true },
     status: {
       type: String,
-      enum: ['reserved', 'checked_in', 'completed'],
+      enum: ['reserved', 'checked_in', 'completed', 'cancelled'],
       default: 'reserved',
     },
   },

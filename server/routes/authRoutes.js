@@ -7,15 +7,15 @@ import {
   setupFirstAdmin,
   applyOwner,
   getOwnerApplicationStatus,
-  forgotPassword,
 } from '../controllers/authController.js';
+import { submitPasswordResetRequest } from '../controllers/adminRequestController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
 
 router.post('/register', register);
 router.post('/login', login);
-router.post('/forgot-password', forgotPassword);
+router.post('/forgot-password', submitPasswordResetRequest);
 router.get('/setup-admin/status', getAdminSetupStatus);
 router.post('/setup-admin', setupFirstAdmin);
 router.post('/apply-owner', applyOwner);

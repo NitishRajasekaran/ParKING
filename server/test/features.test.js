@@ -2,9 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import User from '../models/User.js';
 import Ticket from '../models/Ticket.js';
+import Reservation from '../models/Reservation.js';
 import ParkingLot from '../models/ParkingLot.js';
 import Slot from '../models/Slot.js';
-import { forgotPassword } from '../controllers/authController.js';
+import AdminRequest from '../models/AdminRequest.js';
+import {
+  submitPasswordResetRequest,
+  submitSlotCancellationRequest,
+  approveAdminRequest,
+  rejectAdminRequest,
+} from '../controllers/adminRequestController.js';
 import { deleteTicket, deleteUsedTickets } from '../controllers/ticketController.js';
 import { deleteSlot } from '../controllers/lotController.js';
 import { deleteOwnerGuard } from '../controllers/ownerController.js';
@@ -17,31 +24,102 @@ const responseRecorder = () => ({
   json(body) { this.body = body; return this; },
 });
 
-test('forgotPassword updates password for existing user without requiring auth token', async (t) => {
-  let saved = false;
+test('submitPasswordResetRequest creates pending AdminRequest for verification', async (t) => {
   const mockUser = {
+    _id: '507f1f77bcf86cd799439011',
+    name: 'Driver Test',
     email: 'driver@test.com',
+    role: 'driver',
     passwordHash: 'old-hash',
-    save: async () => { saved = true; },
   };
   t.mock.method(User, 'findOne', () => Promise.resolve(mockUser));
+  t.mock.method(AdminRequest, 'findOne', () => Promise.resolve(null));
+  t.mock.method(AdminRequest, 'create', (data) => Promise.resolve({ ...data, _id: 'req-1' }));
 
   const res = responseRecorder();
-  await forgotPassword({ body: { email: 'DRIVER@TEST.COM', password: 'NewPassword123' } }, res);
+  await submitPasswordResetRequest({ body: { email: 'DRIVER@TEST.COM', password: 'NewPassword123' } }, res);
 
   assert.equal(res.code, 200);
-  assert.equal(saved, true);
-  assert.match(res.body.message, /password reset successfully/i);
+  assert.match(res.body.message, /awaiting admin verification/i);
 });
 
-test('forgotPassword returns 404 if email does not exist', async (t) => {
+test('submitPasswordResetRequest returns 404 if email does not exist', async (t) => {
   t.mock.method(User, 'findOne', () => Promise.resolve(null));
 
   const res = responseRecorder();
-  await forgotPassword({ body: { email: 'unknown@test.com', password: 'NewPassword123' } }, res);
+  await submitPasswordResetRequest({ body: { email: 'unknown@test.com', password: 'NewPassword123' } }, res);
 
   assert.equal(res.code, 404);
   assert.match(res.body.message, /no account found/i);
+});
+
+test('approveAdminRequest approves password reset and updates user password', async (t) => {
+  let savedUser = false;
+  let savedReq = false;
+  const mockReq = {
+    _id: '507f1f77bcf86cd799439012',
+    type: 'password_reset',
+    user: '507f1f77bcf86cd799439011',
+    pendingPasswordHash: 'new-hashed-pw',
+    status: 'pending',
+    save: async () => { savedReq = true; },
+  };
+  const mockUser = {
+    _id: '507f1f77bcf86cd799439011',
+    passwordHash: 'old-hash',
+    save: async () => { savedUser = true; },
+  };
+  t.mock.method(AdminRequest, 'findById', () => Promise.resolve(mockReq));
+  t.mock.method(User, 'findById', () => Promise.resolve(mockUser));
+
+  const res = responseRecorder();
+  await approveAdminRequest({ params: { id: '507f1f77bcf86cd799439012' }, user: { _id: 'admin-1' } }, res);
+
+  assert.equal(res.code, 200);
+  assert.equal(mockReq.status, 'approved');
+  assert.equal(mockUser.passwordHash, 'new-hashed-pw');
+  assert.equal(savedUser, true);
+  assert.equal(savedReq, true);
+});
+
+test('approveAdminRequest approves slot cancellation and frees slot back to available', async (t) => {
+  let slotUpdated = false;
+  let resCancelled = false;
+  let ticketCancelled = false;
+  const mockReq = {
+    _id: '507f1f77bcf86cd799439013',
+    type: 'slot_cancellation',
+    slot: 'slot-1',
+    reservation: 'res-1',
+    ticket: 'ticket-1',
+    lot: 'lot-1',
+    user: 'driver-1',
+    status: 'pending',
+    save: async () => {},
+  };
+  t.mock.method(AdminRequest, 'findById', () => Promise.resolve(mockReq));
+  t.mock.method(Slot, 'findByIdAndUpdate', (id, update) => {
+    if (update.$set?.status === 'available' || update.status === 'available') slotUpdated = true;
+    return Promise.resolve();
+  });
+  t.mock.method(Reservation, 'findByIdAndUpdate', (id, update) => {
+    if (update.$set?.status === 'cancelled' || update.status === 'cancelled') resCancelled = true;
+    return Promise.resolve();
+  });
+  t.mock.method(Ticket, 'findByIdAndUpdate', (id, update) => {
+    if (update.$set?.status === 'cancelled' || update.status === 'cancelled') ticketCancelled = true;
+    return Promise.resolve();
+  });
+  t.mock.method(Slot, 'countDocuments', () => Promise.resolve(5));
+
+  const res = responseRecorder();
+  await approveAdminRequest({ params: { id: '507f1f77bcf86cd799439013' }, user: { _id: 'admin-1' } }, res);
+
+  assert.equal(res.code, 200);
+  assert.equal(mockReq.status, 'approved');
+  assert.equal(slotUpdated, true);
+  assert.equal(resCancelled, true);
+  assert.equal(ticketCancelled, true);
 });
 
 test('deleteTicket rejects non-exited tickets with 400', async (t) => {

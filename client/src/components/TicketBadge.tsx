@@ -1,4 +1,4 @@
-import { CircleCheck, LogIn, LogOut } from "lucide-react";
+import { CircleCheck, CircleX, LogIn, LogOut } from "lucide-react";
 import type { TicketStatus } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
@@ -6,6 +6,7 @@ const map: Record<TicketStatus, { label: string; icon: typeof LogIn; solid: bool
   issued: { label: "Ready", icon: CircleCheck, solid: true },
   entered: { label: "Parked", icon: LogIn, solid: false },
   exited: { label: "Done", icon: LogOut, solid: false },
+  cancelled: { label: "Cancelled", icon: CircleX, solid: false },
 };
 
 export function TicketBadge({ status, className }: { status: TicketStatus; className?: string }) {

@@ -23,19 +23,34 @@ function TicketPage() {
     refetchInterval: 15000,
   });
 
+  const cancelReq = useQuery({
+    queryKey: ["ticket-cancel-request", id],
+    queryFn: () => ticketsApi.getCancellationRequest(id),
+    staleTime: 0,
+    refetchInterval: 5000,
+  });
+
+  const [requestingCancel, setRequestingCancel] = useState(false);
+  const [cancelNotice, setCancelNotice] = useState<string | null>(null);
+
   useEffect(() => {
     const s = getSocket();
     const onTicketUpdate = (data?: { ticketId?: string }) => {
       if (!data?.ticketId || data.ticketId === id) {
         void qc.invalidateQueries({ queryKey: ["ticket", id] });
         void qc.invalidateQueries({ queryKey: ["tickets"] });
+        void qc.invalidateQueries({ queryKey: ["ticket-cancel-request", id] });
       }
     };
     s.on("ticket:entry", onTicketUpdate);
     s.on("ticket:exit", onTicketUpdate);
+    s.on("ticket:cancelled", onTicketUpdate);
+    s.on("admin:request:updated", onTicketUpdate);
     return () => {
       s.off("ticket:entry", onTicketUpdate);
       s.off("ticket:exit", onTicketUpdate);
+      s.off("ticket:cancelled", onTicketUpdate);
+      s.off("admin:request:updated", onTicketUpdate);
     };
   }, [id, qc]);
   const slotRef = q.data?.reservation && typeof q.data.reservation === "object" ? q.data.reservation.slot : undefined;
@@ -95,7 +110,48 @@ function TicketPage() {
             <div className="text-sm text-muted-foreground">SLOT</div>
             <div className="text-5xl font-black">{names.slotLabel}</div>
             <div className="mt-2 text-lg font-bold">{names.lotName}</div>
-            {t.status === "issued" && <p className="mt-4 rounded-xl bg-muted py-3 text-base font-semibold">Show this at entry</p>}
+            {t.status === "issued" && (
+              <div className="mt-4 space-y-3">
+                <p className="rounded-xl bg-muted py-3 text-base font-semibold">Show this at entry</p>
+                {cancelNotice && <Notice kind="info">{cancelNotice}</Notice>}
+                {cancelReq.data?.status === "pending" ? (
+                  <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3 text-center text-sm font-semibold text-amber-600 dark:text-amber-400">
+                    Cancellation request sent to Admin — awaiting verification & slot release.
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={requestingCancel}
+                    onClick={async () => {
+                      const reason = window.prompt("Reason for slot cancellation (optional):");
+                      if (reason === null) return;
+                      setRequestingCancel(true);
+                      setCancelNotice(null);
+                      try {
+                        const res = await ticketsApi.requestCancellation(t._id, reason);
+                        setCancelNotice(res.message);
+                        await qc.invalidateQueries({ queryKey: ["ticket-cancel-request", id] });
+                      } catch (err) {
+                        alert(errorMessage(err, "Could not submit cancellation request"));
+                      } finally {
+                        setRequestingCancel(false);
+                      }
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-destructive/40 px-4 py-2 text-sm font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                  >
+                    Request Slot Cancellation
+                  </button>
+                )}
+                {cancelReq.data?.status === "rejected" && (
+                  <p className="text-xs text-muted-foreground">Previous cancellation request was rejected by admin.</p>
+                )}
+              </div>
+            )}
+            {t.status === "cancelled" && (
+              <div className="mt-4 rounded-xl border border-destructive/30 bg-destructive/10 py-3 text-center text-sm font-bold text-destructive">
+                This reservation was cancelled by Admin verification.
+              </div>
+            )}
             {t.status === "entered" && <p className="mt-4 rounded-xl bg-muted py-3 text-base font-semibold">Show this at exit</p>}
             {t.status === "exited" && (
               <div className="mt-4 space-y-3">

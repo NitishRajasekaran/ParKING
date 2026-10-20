@@ -154,14 +154,14 @@ function LoginPage() {
               : mode === "applyOwner"
               ? "Apply as a Parking Owner"
               : mode === "forgotPassword"
-              ? "Reset Password"
+              ? "Request Password Reset"
               : mode === "staff"
               ? "Staff Login"
               : mode === "owner"
               ? "Owner Login"
               : "Driver Login"}
           </h1>
-          {mode === "forgotPassword" && <p className="mt-2 text-sm text-muted-foreground">Enter your account email and choose a new password.</p>}
+          {mode === "forgotPassword" && <p className="mt-2 text-sm text-muted-foreground">Enter your account email and desired new password. A verification request will be sent to the Admin for approval.</p>}
           {mode === "staff" && <p className="mt-2 text-sm text-muted-foreground">For existing Platform Admin and Guard accounts.</p>}
           {mode === "owner" && <p className="mt-2 text-sm text-muted-foreground">For owner accounts. Pending applications can sign in to check their status.</p>}
           {mode === "setupAdmin" && <p className="mt-2 text-sm text-muted-foreground">Set up the first Platform Admin account for this ParKING system.</p>}
@@ -189,7 +189,7 @@ function LoginPage() {
             )}
             <Field label="Email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} icon={<Mail className="size-5" />} />
             <Field
-              label={mode === "forgotPassword" ? "New Password" : "Password"}
+              label={mode === "forgotPassword" ? "Desired New Password" : "Password"}
               type="password"
               autoComplete={isCreatingAccount || mode === "forgotPassword" ? "new-password" : "current-password"}
               required
@@ -218,7 +218,7 @@ function LoginPage() {
                 : mode === "applyOwner"
                 ? "Submit Owner Application"
                 : mode === "forgotPassword"
-                ? "Reset Password"
+                ? "Send Reset Request to Admin"
                 : "Sign in"}
             </Btn>
           </>

@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Car, CircleParking, IndianRupee, Plus, ShieldCheck, SquareParking, Trash2 } from "lucide-react";
+import { Ban, Car, Check, CircleParking, IndianRupee, KeyRound, Plus, ShieldCheck, SquareParking, Trash2, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import { adminApi, availableOf, errorMessage, occupiedOf, refId, type Lot, type StaffRole, type StaffUser } from "@/lib/api";
+import { adminApi, availableOf, errorMessage, occupiedOf, refId, type AdminRequest, type Lot, type StaffRole, type StaffUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useAdminLive } from "@/lib/admin-live";
+import { getSocket } from "@/lib/socket";
 import { Btn, btnClass, Field, Notice, PageTitle, rupees, Skel } from "@/components/ui-kit";
 import { LotTable } from "@/components/LotTable";
 
@@ -120,6 +121,8 @@ function Dashboard() {
         {masterNotice && <div className="mt-3"><Notice kind="success">{masterNotice}</Notice></div>}
         {masterError && <div className="mt-3"><Notice kind="error">{masterError}</Notice></div>}
       </section>
+
+      <VerificationRequestsSection />
 
       <section className="mt-6 rounded-2xl border border-border p-5">
         <h2 className="mb-4 text-xl font-bold">Occupancy</h2>
@@ -257,5 +260,235 @@ function Metric({ icon, label, value, dark }: { icon: ReactNode; label: string; 
       <div className="flex items-center gap-2 text-sm font-semibold opacity-80">{icon}{label}</div>
       <div className="mt-2 text-3xl font-black">{value ?? <span className="inline-block h-8 w-16 animate-pulse rounded bg-muted" />}</div>
     </div>
+  );
+}
+
+function VerificationRequestsSection() {
+  const qc = useQueryClient();
+  const requests = useQuery({
+    queryKey: ["admin", "requests"],
+    queryFn: () => adminApi.requests(),
+    refetchInterval: 5000,
+  });
+
+  const [filterType, setFilterType] = useState<"all" | "password_reset" | "slot_cancellation">("all");
+  const [showOnlyPending, setShowOnlyPending] = useState(true);
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [errorNotice, setErrorNotice] = useState<string | null>(null);
+
+  useEffect(() => {
+    const s = getSocket();
+    const refresh = () => {
+      void qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+      void qc.invalidateQueries({ queryKey: ["admin", "lots"] });
+    };
+    s.on("admin:request:created", refresh);
+    s.on("admin:request:updated", refresh);
+    return () => {
+      s.off("admin:request:created", refresh);
+      s.off("admin:request:updated", refresh);
+    };
+  }, [qc]);
+
+  const allList = requests.data ?? [];
+  const pendingCount = allList.filter((r) => r.status === "pending").length;
+
+  const filtered = allList.filter((r) => {
+    if (showOnlyPending && r.status !== "pending") return false;
+    if (filterType !== "all" && r.type !== filterType) return false;
+    return true;
+  });
+
+  const handleApprove = async (req: AdminRequest) => {
+    const label = req.type === "password_reset" ? "Approve password reset" : "Approve slot cancellation";
+    if (!window.confirm(`${label} for ${req.userName || req.userEmail}?`)) return;
+    setActionBusyId(req._id);
+    setNotice(null);
+    setErrorNotice(null);
+    try {
+      const res = await adminApi.approveRequest(req._id);
+      setNotice(res.message);
+      await qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+      await qc.invalidateQueries({ queryKey: ["admin", "lots"] });
+    } catch (e) {
+      setErrorNotice(errorMessage(e, "Could not approve request"));
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const handleReject = async (req: AdminRequest) => {
+    const reason = window.prompt("Reason for rejection (optional):");
+    if (reason === null) return;
+    setActionBusyId(req._id);
+    setNotice(null);
+    setErrorNotice(null);
+    try {
+      const res = await adminApi.rejectRequest(req._id, reason);
+      setNotice(res.message);
+      await qc.invalidateQueries({ queryKey: ["admin", "requests"] });
+    } catch (e) {
+      setErrorNotice(errorMessage(e, "Could not reject request"));
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl border border-border p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-bold">Admin Verification Requests</h2>
+            {pendingCount > 0 ? (
+              <span className="rounded-full bg-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                {pendingCount} Pending
+              </span>
+            ) : (
+              <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-semibold text-muted-foreground">
+                All Cleared
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Verify password resets and reserved slot cancellations requested by drivers, owners, and guards.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-lg border border-border bg-muted p-0.5 text-xs font-semibold">
+            <button
+              type="button"
+              onClick={() => setFilterType("all")}
+              className={`rounded-md px-2.5 py-1 ${filterType === "all" ? "bg-background shadow font-bold" : "text-muted-foreground"}`}
+            >
+              All Types
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType("password_reset")}
+              className={`rounded-md px-2.5 py-1 ${filterType === "password_reset" ? "bg-background shadow font-bold" : "text-muted-foreground"}`}
+            >
+              Password Reset
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterType("slot_cancellation")}
+              className={`rounded-md px-2.5 py-1 ${filterType === "slot_cancellation" ? "bg-background shadow font-bold" : "text-muted-foreground"}`}
+            >
+              Slot Cancellation
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setShowOnlyPending(!showOnlyPending)}
+            className={`rounded-lg border px-3 py-1 text-xs font-semibold ${
+              showOnlyPending ? "border-foreground bg-foreground text-background" : "border-border text-muted-foreground hover:bg-muted"
+            }`}
+          >
+            {showOnlyPending ? "Pending Only" : "Show All"}
+          </button>
+        </div>
+      </div>
+
+      {notice && <div className="mt-4"><Notice kind="success">{notice}</Notice></div>}
+      {errorNotice && <div className="mt-4"><Notice kind="error">{errorNotice}</Notice></div>}
+
+      {requests.isLoading ? (
+        <div className="mt-4 space-y-2"><Skel className="h-20" /><Skel className="h-20" /></div>
+      ) : requests.isError ? (
+        <div className="mt-4"><Notice kind="error">{errorMessage(requests.error)}</Notice></div>
+      ) : filtered.length === 0 ? (
+        <p className="mt-6 rounded-xl border border-dashed border-input py-8 text-center text-sm text-muted-foreground">
+          {showOnlyPending ? "No pending verification requests." : "No requests found."}
+        </p>
+      ) : (
+        <div className="mt-4 divide-y divide-border">
+          {filtered.map((item) => {
+            const isPassword = item.type === "password_reset";
+            const lotObj = item.lot && typeof item.lot === "object" ? (item.lot as any) : undefined;
+            const slotObj = item.slot && typeof item.slot === "object" ? (item.slot as any) : undefined;
+            const ticketObj = item.ticket && typeof item.ticket === "object" ? (item.ticket as any) : undefined;
+            const userObj = item.user && typeof item.user === "object" ? (item.user as any) : undefined;
+
+            return (
+              <div key={item._id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-start gap-3 min-w-0">
+                  <span className={`mt-1 grid size-9 shrink-0 place-items-center rounded-xl ${
+                    isPassword ? "bg-primary/10 text-primary" : "bg-destructive/10 text-destructive"
+                  }`}>
+                    {isPassword ? <KeyRound className="size-4" /> : <Ban className="size-4" />}
+                  </span>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-bold text-sm">
+                        {isPassword ? "Password Reset Request" : "Reserved Slot Cancellation"}
+                      </span>
+                      <span className="rounded-md border border-border px-2 py-0.5 text-[11px] font-semibold uppercase">
+                        {item.userRole}
+                      </span>
+                      <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold uppercase ${
+                        item.status === "pending"
+                          ? "bg-amber-500/10 text-amber-600 border border-amber-500/20"
+                          : item.status === "approved"
+                          ? "bg-primary/10 text-primary border border-primary/20"
+                          : "bg-muted text-muted-foreground border border-border"
+                      }`}>
+                        {item.status}
+                      </span>
+                    </div>
+
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Requested by: <b className="text-foreground">{item.userName || userObj?.name || item.userEmail}</b> ({item.userEmail}) • {new Date(item.createdAt).toLocaleString()}
+                    </div>
+
+                    {!isPassword && (
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+                        {lotObj?.name && <span className="font-semibold text-foreground">Lot: {lotObj.name}</span>}
+                        {slotObj?.label && <span className="font-semibold text-primary">Slot: {slotObj.label}</span>}
+                        {ticketObj?.ticketCode && <span className="text-muted-foreground">Ticket: {ticketObj.ticketCode}</span>}
+                        {item.reason && <span className="italic text-muted-foreground">Reason: "{item.reason}"</span>}
+                      </div>
+                    )}
+
+                    {item.status !== "pending" && item.reviewedAt && (
+                      <div className="mt-0.5 text-[11px] text-muted-foreground">
+                        {item.status === "approved" ? "Verified & Approved" : "Rejected"} on {new Date(item.reviewedAt).toLocaleString()}
+                        {item.reviewNotes && ` (${item.reviewNotes})`}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {item.status === "pending" && (
+                  <div className="flex shrink-0 items-center gap-2 self-start sm:self-center">
+                    <Btn
+                      size="md"
+                      loading={actionBusyId === item._id}
+                      onClick={() => void handleApprove(item)}
+                      className="h-9 px-3 text-xs"
+                    >
+                      <Check className="size-3.5" />
+                      {isPassword ? "Approve Reset" : "Approve & Release Slot"}
+                    </Btn>
+                    <button
+                      type="button"
+                      disabled={actionBusyId === item._id}
+                      onClick={() => void handleReject(item)}
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-destructive/40 px-3 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:opacity-40"
+                    >
+                      <X className="size-3.5" />
+                      Reject
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }

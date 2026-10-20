@@ -14,6 +14,11 @@ import {
   rejectOwnerApplication,
   assignLotOwner,
 } from '../controllers/adminController.js';
+import {
+  getAdminRequests,
+  approveAdminRequest,
+  rejectAdminRequest,
+} from '../controllers/adminRequestController.js';
 import { protect, authorize } from '../middleware/auth.js';
 
 const router = express.Router();
@@ -39,5 +44,10 @@ router.patch('/owners/:id/reject', protect, authorize('platform_admin'), rejectO
 // Lot Assignment (Platform Admin)
 router.patch('/lots/:id/assign-owner', protect, authorize('platform_admin'), assignLotOwner);
 router.post('/lots/:id/assign-owner', protect, authorize('platform_admin'), assignLotOwner);
+
+// Verification Requests (Password Reset & Slot Cancellation)
+router.get('/requests', protect, authorize('admin'), getAdminRequests);
+router.post('/requests/:id/approve', protect, authorize('platform_admin'), approveAdminRequest);
+router.post('/requests/:id/reject', protect, authorize('platform_admin'), rejectAdminRequest);
 
 export default router;

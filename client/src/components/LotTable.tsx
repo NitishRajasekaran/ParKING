@@ -122,6 +122,7 @@ function LotSlotsSection({ lotId }: { lotId: string }) {
   const qc = useQueryClient();
   const [errorNotice, setErrorNotice] = useState<string | null>(null);
   const [deletingSlotId, setDeletingSlotId] = useState<string | null>(null);
+  const [cancellingSlotId, setCancellingSlotId] = useState<string | null>(null);
 
   const slotsQuery = useQuery({
     queryKey: ["lot-slots", lotId],
@@ -141,6 +142,21 @@ function LotSlotsSection({ lotId }: { lotId: string }) {
       setErrorNotice(errorMessage(e, "Could not delete slot"));
     } finally {
       setDeletingSlotId(null);
+    }
+  };
+
+  const handleRequestSlotCancel = async (slotId: string, label: string) => {
+    const reason = window.prompt(`Reason to request cancellation for reserved slot "${label}" (optional):`);
+    if (reason === null) return;
+    setCancellingSlotId(slotId);
+    setErrorNotice(null);
+    try {
+      const res = await lotsApi.requestSlotCancellation(lotId, slotId, reason);
+      alert(res.message);
+    } catch (e) {
+      setErrorNotice(errorMessage(e, "Could not request cancellation"));
+    } finally {
+      setCancellingSlotId(null);
     }
   };
 
@@ -178,6 +194,16 @@ function LotSlotsSection({ lotId }: { lotId: string }) {
                 aria-label={`Delete slot ${s.label}`}
               >
                 <Trash2 className="size-3.5" />
+              </button>
+            ) : s.status === "reserved" ? (
+              <button
+                type="button"
+                disabled={cancellingSlotId === s._id}
+                onClick={() => void handleRequestSlotCancel(s._id, s.label)}
+                className="rounded border border-amber-500/40 px-2 py-0.5 text-[10px] font-semibold text-amber-600 hover:bg-amber-500/10 dark:text-amber-400 disabled:opacity-40"
+                title="Request admin to cancel this reserved slot"
+              >
+                Request Cancel
               </button>
             ) : (
               <span className="text-[10px] text-muted-foreground">In Use</span>

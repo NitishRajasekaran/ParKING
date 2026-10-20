@@ -9,7 +9,7 @@ const ticketSchema = new mongoose.Schema(
     qrToken: { type: String, required: true, unique: true },
     // Copy-friendly identifier for manual lookup; optional for pre-existing tickets.
     ticketCode: { type: String, unique: true, sparse: true },
-    status: { type: String, enum: ['issued', 'entered', 'exited'], default: 'issued' },
+    status: { type: String, enum: ['issued', 'entered', 'exited', 'cancelled'], default: 'issued' },
     enteredAt: { type: Date },
     exitedAt: { type: Date },
     // Amount calculated on exit: billedHours (minimum 1, rounded up to whole hour) * hourlyRate

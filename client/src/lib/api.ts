@@ -27,7 +27,30 @@ export interface Lot {
 export type SlotStatus = "available" | "reserved" | "occupied";
 export interface Slot { _id: string; lot: string; label: string; status: SlotStatus }
 export interface Reservation { _id: string; user?: string; lot: Ref; slot: Ref; status: "reserved" | "checked_in" | "completed"; createdAt: string }
-export type TicketStatus = "issued" | "entered" | "exited";
+export type TicketStatus = "issued" | "entered" | "exited" | "cancelled";
+export type AdminRequestType = "password_reset" | "slot_cancellation";
+export type AdminRequestStatus = "pending" | "approved" | "rejected";
+
+export interface AdminRequest {
+  _id: string;
+  type: AdminRequestType;
+  user: Ref;
+  userEmail: string;
+  userName?: string;
+  userRole: Role;
+  status: AdminRequestStatus;
+  ticket?: Ref;
+  reservation?: Ref;
+  lot?: Ref;
+  slot?: Ref;
+  reason?: string;
+  reviewedBy?: Ref;
+  reviewedAt?: string;
+  reviewNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Ticket {
   _id: string; reservation: string | { _id: string; slot: Ref }; user?: Ref; lot: Ref; qrToken: string; ticketCode?: string;
   status: TicketStatus; enteredAt?: string | null; exitedAt?: string | null; amount?: number | null;
@@ -198,6 +221,8 @@ export const lotsApi = {
     http.post<Lot>("/lots", body).then((r) => r.data),
   deleteSlot: (lotId: string, slotId: string) =>
     http.delete<{ message: string; slotId: string }>(`/lots/${lotId}/slots/${slotId}`).then((r) => r.data),
+  requestSlotCancellation: (lotId: string, slotId: string, reason?: string) =>
+    http.post<{ message: string; request: AdminRequest }>(`/lots/${lotId}/slots/${slotId}/cancel-request`, { reason }).then((r) => r.data),
 };
 
 export const reservationsApi = {
@@ -210,6 +235,10 @@ export const ticketsApi = {
   get: (id: string) => http.get<Ticket>(`/tickets/${id}`).then((r) => r.data),
   delete: (id: string) => http.delete<{ message: string }>(`/tickets/${id}`).then((r) => r.data),
   deleteUsed: () => http.delete<{ message: string; deletedCount: number }>("/tickets/used").then((r) => r.data),
+  requestCancellation: (id: string, reason?: string) =>
+    http.post<{ message: string; request: AdminRequest }>(`/tickets/${id}/cancel-request`, { reason }).then((r) => r.data),
+  getCancellationRequest: (id: string) =>
+    http.get<AdminRequest | null>(`/tickets/${id}/cancel-request`).then((r) => r.data),
 };
 
 export const guardApi = {
@@ -259,6 +288,9 @@ export const adminApi = {
   approveOwner: (id: string) => http.post<OwnerApplication>(`/admin/owners/${id}/approve`).then((r) => r.data),
   rejectOwner: (id: string) => http.post<OwnerApplication>(`/admin/owners/${id}/reject`).then((r) => r.data),
   assignLotOwner: (id: string, ownerId: string | null) => http.patch<Lot>(`/admin/lots/${id}/assign-owner`, { ownerId }).then((r) => r.data),
+  requests: (params?: { status?: string; type?: string }) => http.get<AdminRequest[]>("/admin/requests", { params }).then((r) => r.data),
+  approveRequest: (id: string) => http.post<{ message: string; request: AdminRequest }>(`/admin/requests/${id}/approve`).then((r) => r.data),
+  rejectRequest: (id: string, reason?: string) => http.post<{ message: string; request: AdminRequest }>(`/admin/requests/${id}/reject`, { reason }).then((r) => r.data),
 };
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
